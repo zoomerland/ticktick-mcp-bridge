@@ -7,6 +7,7 @@ The TickTick API logic and MCP tool definitions live here once. Codex uses the s
 This project does not include any shared TickTick token. Each user runs their own instance, creates or provides their own TickTick OAuth credentials, authorizes TickTick once, and stores tokens only in their own local or private deployment storage.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the separation between shared core, transports, and connector-specific configuration.
+See [docs/OFFICIAL_API_COVERAGE.md](docs/OFFICIAL_API_COVERAGE.md) for the current official TickTick endpoint coverage and Swagger/OpenAPI JSON probe notes.
 
 ## What It Exposes
 
@@ -27,6 +28,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the separation between shared core, t
 - Tasks:
   - `ticktick_get_task`
   - `ticktick_list_tasks`
+  - `ticktick_filter_tasks_official`
+  - `ticktick_list_completed_tasks`
   - `ticktick_search_tasks`
   - `ticktick_find_task_candidates`
   - `ticktick_today`
@@ -41,6 +44,18 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the separation between shared core, t
   - `ticktick_delete_task`
 - Diagnostics:
   - `ticktick_diagnostics`
+- Focus/Pomodoro:
+  - `ticktick_list_focuses`
+  - `ticktick_get_focus`
+  - `ticktick_analyze_focus`
+  - `ticktick_delete_focus`
+- Habits:
+  - `ticktick_list_habits`
+  - `ticktick_get_habit`
+  - `ticktick_create_habit`
+  - `ticktick_update_habit`
+  - `ticktick_checkin_habit`
+  - `ticktick_list_habit_checkins`
 - Escape hatch:
   - `ticktick_raw_request`
 
@@ -56,6 +71,8 @@ For natural-language task changes, prefer the safe workflow:
 
 `ticktick_diagnostics` is non-destructive and checks auth, project access, Inbox visibility, and task counts. It is the fastest first check when the bridge looks connected but task results seem incomplete.
 
+Habit and Focus/Pomodoro tools are based on the official TickTick Open API `Habit` and `Focus` sections. Countdown, calendar subscriptions, and Eisenhower Matrix are not exposed by the official Open API at this time, so this bridge does not implement them as first-class TickTick tools.
+
 ## Local Setup
 
 Install dependencies if you use a regular Node.js checkout:
@@ -70,6 +87,7 @@ Run local checks:
 npm run check
 npm run test:inbox
 npm run test:task-operations
+npm run test:official-openapi
 ```
 
 Copy `.env.example` to `.env` or set equivalent environment variables:
@@ -170,3 +188,4 @@ Debug endpoints:
 - OpenAI MCP server guide: https://developers.openai.com/api/docs/mcp
 - ChatGPT Developer Mode help: https://help.openai.com/en/articles/12584461-developer-mode-apps-and-full-mcp-connectors-in-chatgpt-beta
 - TickTick Open API entry point: https://developer.ticktick.com/docs#/openapi
+- TickTick Open API Markdown source: https://developer.ticktick.com/docs/openapi.md

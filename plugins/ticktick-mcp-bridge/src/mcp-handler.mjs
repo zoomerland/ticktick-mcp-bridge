@@ -3,7 +3,7 @@ import { toolMap, tools } from "./tools.mjs";
 
 export const SERVER_INFO = {
   name: "ticktick-mcp-bridge",
-  version: "0.2.0",
+  version: "0.3.0",
 };
 
 export function rpcResult(id, result) {

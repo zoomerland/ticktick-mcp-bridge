@@ -1,5 +1,5 @@
 import { apiProjectId, fetchAllTasks, filterTasks, sortTasks, taskSearchText, workloadSummary } from "./ticktick-data.mjs";
-import { ticktickRequest } from "./ticktick-api.mjs";
+import { prune, ticktickRequest } from "./ticktick-api.mjs";
 
 const DEFAULT_LIMIT = 20;
 
@@ -244,19 +244,52 @@ export async function completeById(projectId, taskId, options = {}) {
 }
 
 export async function moveTask(args = {}) {
-  const payload = {
-    projectId: apiProjectId(args.targetProjectId),
-    columnId: args.columnId,
-  };
-  const response = await ticktickRequest("POST", `/task/${encodeURIComponent(args.taskId)}`, payload);
+  const payload = [officialMoveTaskPayload(args)];
+  const response = await ticktickRequest("POST", "/task/move", payload);
   return {
     moved: true,
-    taskId: args.taskId,
-    targetProjectId: args.targetProjectId,
-    apiProjectId: payload.projectId,
-    columnId: args.columnId,
+    ...payload[0],
     response,
   };
+}
+
+export function officialMoveTaskPayload(args = {}) {
+  const fromProjectId = args.fromProjectId || args.sourceProjectId || args.projectId;
+  const toProjectId = args.toProjectId || args.targetProjectId;
+  return {
+    fromProjectId,
+    toProjectId,
+    taskId: args.taskId,
+  };
+}
+
+export function officialTaskFilterPayload(args = {}) {
+  return prune({
+    projectIds: args.projectIds,
+    startDate: args.startDate,
+    endDate: args.endDate,
+    priority: args.priority,
+    tag: args.tag,
+    status: args.status,
+  });
+}
+
+export async function filterTasksOfficial(args = {}) {
+  const tasks = await ticktickRequest("POST", "/task/filter", officialTaskFilterPayload(args));
+  return args.limit ? tasks.slice(0, Number(args.limit)) : tasks;
+}
+
+export function completedTaskPayload(args = {}) {
+  return prune({
+    projectIds: args.projectIds,
+    startDate: args.startDate,
+    endDate: args.endDate,
+  });
+}
+
+export async function listCompletedTasks(args = {}) {
+  const tasks = await ticktickRequest("POST", "/task/completed", completedTaskPayload(args));
+  return args.limit ? tasks.slice(0, Number(args.limit)) : tasks;
 }
 
 export async function listInboxTasks(args = {}) {

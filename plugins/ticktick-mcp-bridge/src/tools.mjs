@@ -8,6 +8,23 @@ import {
 } from "./ticktick-api.mjs";
 import { runDiagnostics } from "./diagnostics.mjs";
 import {
+  analyzeFocus,
+  deleteFocus,
+  focusTypeSchema,
+  getFocus,
+  listFocuses,
+} from "./focus-operations.mjs";
+import {
+  checkInHabit,
+  createHabit,
+  getHabit,
+  habitCheckinFields,
+  habitFields,
+  listHabitCheckins,
+  listHabits,
+  updateHabit,
+} from "./habit-operations.mjs";
+import {
   apiProjectId,
   fetchAllTasks,
   fetchProjects,
@@ -18,7 +35,9 @@ import {
   analyzeWorkload,
   completeTaskSafe,
   findTaskCandidates,
+  filterTasksOfficial,
   listInboxTasks,
+  listCompletedTasks,
   listOverdueTasks,
   moveTask,
   searchTasks,
@@ -214,6 +233,37 @@ export const tools = [
     handler: async (args) => filterTasks(await fetchAllTasks(args), args),
   },
   {
+    name: "ticktick_filter_tasks_official",
+    description: "Use TickTick's official /task/filter endpoint for project, date, priority, tag, and status filtering.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        projectIds: { type: "array", items: { type: "string" } },
+        startDate: { type: "string", description: "Inclusive start date-time for task startDate filtering." },
+        endDate: { type: "string", description: "Inclusive end date-time for task startDate filtering." },
+        priority: { type: "array", items: { type: "number" }, description: "Priority values: None 0, Low 1, Medium 3, High 5." },
+        tag: { type: "array", items: { type: "string" }, description: "Tasks must contain all listed tags." },
+        status: { type: "array", items: { type: "number" }, description: "Status values, for example open 0 or completed 2." },
+        limit: { type: "number" },
+      },
+    },
+    handler: async (args) => filterTasksOfficial(args),
+  },
+  {
+    name: "ticktick_list_completed_tasks",
+    description: "Use TickTick's official /task/completed endpoint to list completed tasks by project and completion time range.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        projectIds: { type: "array", items: { type: "string" } },
+        startDate: { type: "string", description: "Completion time range start." },
+        endDate: { type: "string", description: "Completion time range end." },
+        limit: { type: "number" },
+      },
+    },
+    handler: async (args) => listCompletedTasks(args),
+  },
+  {
     name: "ticktick_search_tasks",
     description: "Search TickTick tasks across all projects and Inbox, returning ranked candidates with match reasons.",
     inputSchema: {
@@ -331,14 +381,16 @@ export const tools = [
   },
   {
     name: "ticktick_move_task",
-    description: "Move a TickTick task to another project/list, optionally into a Kanban column.",
+    description: "Move a TickTick task to another project/list using the official /task/move endpoint.",
     inputSchema: {
       type: "object",
-      required: ["taskId", "targetProjectId"],
+      required: ["taskId", "fromProjectId", "toProjectId"],
       properties: {
         taskId: { type: "string" },
-        targetProjectId: { type: "string" },
-        columnId: { type: "string" },
+        fromProjectId: { type: "string", description: "Source project ID from the task's current projectId." },
+        toProjectId: { type: "string", description: "Destination project ID." },
+        sourceProjectId: { type: "string", description: "Alias for fromProjectId." },
+        targetProjectId: { type: "string", description: "Alias for toProjectId." },
       },
     },
     handler: async (args) => moveTask(args),
@@ -393,6 +445,127 @@ export const tools = [
       },
     },
     handler: async (args) => runDiagnostics(args),
+  },
+  {
+    name: "ticktick_list_focuses",
+    description: "List TickTick Focus records in a time range. Type 0 is Pomodoro, type 1 is Timing. Ranges above 30 days may be adjusted by TickTick.",
+    inputSchema: {
+      type: "object",
+      required: ["from", "to"],
+      properties: {
+        from: { type: "string", description: "Range start, for example 2026-04-01T00:00:00+0800." },
+        to: { type: "string", description: "Range end, for example 2026-04-02T00:00:00+0800." },
+        type: focusTypeSchema,
+      },
+    },
+    handler: async (args) => listFocuses(args),
+  },
+  {
+    name: "ticktick_get_focus",
+    description: "Get a single TickTick Focus record by focus ID and focus type.",
+    inputSchema: {
+      type: "object",
+      required: ["focusId"],
+      properties: {
+        focusId: { type: "string" },
+        type: focusTypeSchema,
+      },
+    },
+    handler: async (args) => getFocus(args),
+  },
+  {
+    name: "ticktick_analyze_focus",
+    description: "Summarize TickTick Focus/Pomodoro time by type for a time range.",
+    inputSchema: {
+      type: "object",
+      required: ["from", "to"],
+      properties: {
+        from: { type: "string" },
+        to: { type: "string" },
+        type: focusTypeSchema,
+        includeSessions: { type: "boolean", default: true },
+      },
+    },
+    handler: async (args) => analyzeFocus(args),
+  },
+  {
+    name: "ticktick_delete_focus",
+    description: "Delete a TickTick Focus record by focus ID and focus type. This is destructive.",
+    inputSchema: {
+      type: "object",
+      required: ["focusId"],
+      properties: {
+        focusId: { type: "string" },
+        type: focusTypeSchema,
+      },
+    },
+    handler: async (args) => deleteFocus(args),
+  },
+  {
+    name: "ticktick_list_habits",
+    description: "List TickTick habits from the official Habit API.",
+    inputSchema: { type: "object", properties: {} },
+    handler: async () => listHabits(),
+  },
+  {
+    name: "ticktick_get_habit",
+    description: "Get a single TickTick habit by habit ID.",
+    inputSchema: {
+      type: "object",
+      required: ["habitId"],
+      properties: { habitId: { type: "string" } },
+    },
+    handler: async (args) => getHabit(args),
+  },
+  {
+    name: "ticktick_create_habit",
+    description: "Create a TickTick habit with the official Habit API.",
+    inputSchema: {
+      type: "object",
+      required: ["name"],
+      properties: habitFields,
+    },
+    handler: async (args) => createHabit(args),
+  },
+  {
+    name: "ticktick_update_habit",
+    description: "Update a TickTick habit by habit ID.",
+    inputSchema: {
+      type: "object",
+      required: ["habitId"],
+      properties: { habitId: { type: "string" }, ...habitFields },
+    },
+    handler: async (args) => updateHabit(args),
+  },
+  {
+    name: "ticktick_checkin_habit",
+    description: "Create or update a TickTick habit check-in for a date stamp.",
+    inputSchema: {
+      type: "object",
+      required: ["habitId", "stamp"],
+      properties: { habitId: { type: "string" }, ...habitCheckinFields },
+    },
+    handler: async (args) => checkInHabit(args),
+  },
+  {
+    name: "ticktick_list_habit_checkins",
+    description: "List TickTick habit check-ins for one or more habits over a date-stamp range.",
+    inputSchema: {
+      type: "object",
+      required: ["habitIds", "from", "to"],
+      properties: {
+        habitIds: {
+          oneOf: [
+            { type: "array", items: { type: "string" } },
+            { type: "string" },
+          ],
+          description: "Habit IDs as an array or comma-separated string.",
+        },
+        from: { type: "number", description: "Start date stamp in YYYYMMDD format." },
+        to: { type: "number", description: "End date stamp in YYYYMMDD format." },
+      },
+    },
+    handler: async (args) => listHabitCheckins(args),
   },
   {
     name: "ticktick_raw_request",

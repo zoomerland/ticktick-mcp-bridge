@@ -10,6 +10,8 @@ src/
   ticktick-api.mjs      TickTick Open API client
   ticktick-data.mjs     normalized projects, Inbox, tasks, filtering, summaries
   task-operations.mjs   agent-oriented search, candidates, safe completion, task moves
+  habit-operations.mjs  official Habit API helpers and check-in operations
+  focus-operations.mjs  official Focus/Pomodoro API helpers and summaries
   diagnostics.mjs       non-destructive auth/API/Inbox/task visibility checks
   tools.mjs             single MCP tool list and handlers
   mcp-handler.mjs       shared JSON-RPC MCP handler
@@ -27,6 +29,8 @@ connectors:
 - TickTick HTTP details belong in `src/ticktick-api.mjs`.
 - Data normalization belongs in `src/ticktick-data.mjs`: projects, Inbox, project data, task fields, filters, due buckets, priorities, and workload summaries.
 - Agent workflows belong in `src/task-operations.mjs`: ranked search, candidate decisions, safe completion, Inbox/overdue helpers, and task moves.
+- Habit workflow helpers belong in `src/habit-operations.mjs`.
+- Focus/Pomodoro workflow helpers belong in `src/focus-operations.mjs`.
 - Health and visibility checks belong in `src/diagnostics.mjs`.
 - Tool names and schemas are defined once in `src/tools.mjs`.
 - Transport-specific code must stay in `src/server.mjs` or `src/transports/*`.
@@ -38,10 +42,30 @@ connectors:
 The bridge intentionally exposes three layers:
 
 1. Data layer: normalized `Task`, `ChecklistItem`, `Project`, `Column`, and `ProjectData` shapes. This layer preserves useful TickTick fields such as `content`, `desc`, `reminders`, `repeatFlag`, `items`, `kind`, `columnId`, `isAllDay`, `priority`, tags, project names, and due buckets.
-2. Scenario layer: agent-safe operations such as `ticktick_search_tasks`, `ticktick_find_task_candidates`, `ticktick_complete_task_safe`, `ticktick_today`, `ticktick_overdue`, `ticktick_inbox`, `ticktick_create_task`, `ticktick_update_task`, `ticktick_move_task`, and project tools.
+2. Scenario layer: agent-safe operations such as `ticktick_search_tasks`, `ticktick_find_task_candidates`, `ticktick_complete_task_safe`, `ticktick_today`, `ticktick_overdue`, `ticktick_inbox`, official `task/filter` and `task/completed`, `ticktick_create_task`, `ticktick_update_task`, official `ticktick_move_task`, project tools, Habit tools, and Focus/Pomodoro tools.
 3. Diagnostics layer: `ticktick_diagnostics` checks auth, endpoint availability, Inbox visibility, project counts, and task bucket counts without changing TickTick data.
 
 When adding a new feature, prefer adding data support first, then a scenario tool, then a diagnostic check only if it helps prove visibility or setup.
+
+## Official API Coverage
+
+The official TickTick documentation is served as a docsify site:
+
+```text
+https://developer.ticktick.com/docs/index.html
+https://developer.ticktick.com/docs/openapi.md
+```
+
+Typical Swagger/OpenAPI JSON paths such as `/openapi.json`, `/swagger.json`, `/v3/api-docs`, `/docs/openapi.json`, and `/docs/swagger.json` currently return 404 on `developer.ticktick.com`. Treat `docs/openapi.md` as the current official source unless TickTick publishes a machine-readable spec later.
+
+Covered official Open API groups:
+
+- Task: get, create, update, complete, delete, move, completed list, and filter.
+- Project: list, get, data, create, update, delete.
+- Focus: get by ID, list by time range, delete.
+- Habit: list, get, create, update, check-in, list check-ins.
+
+Not covered because no official Open API endpoint is documented: Countdown, calendar subscriptions, and Eisenhower Matrix.
 
 ## Auth Storage
 
