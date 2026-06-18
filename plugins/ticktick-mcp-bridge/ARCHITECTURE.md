@@ -43,6 +43,23 @@ This keeps local Codex and HTTP deployments on one token store when they run as 
 
 Set `TICKTICK_AUTH_FILE` only when an intentionally separate token store is needed.
 
+## TickTick Inbox
+
+TickTick Inbox is not returned by the Open API `/project` list. The bridge adds Inbox as a pseudo-project:
+
+```text
+id: inbox
+name: Inbox
+```
+
+Task listing and searching must include `/project/inbox/data` in addition to normal project data. This is a regression-tested behavior; run:
+
+```powershell
+npm run test:inbox
+```
+
+Do not implement project iteration that only walks `/project`, or Inbox tasks will disappear from search, workload summaries, and completion candidate lists.
+
 ## Transports
 
 ### Codex

@@ -8,11 +8,11 @@ import {
   ticktickRequest,
 } from "./ticktick-api.mjs";
 
-function projectNameById(projects) {
+export function projectNameById(projects) {
   return Object.fromEntries(projects.map((project) => [project.id, project.name || project.title || project.id]));
 }
 
-const INBOX_PROJECT = {
+export const INBOX_PROJECT = {
   id: "inbox",
   name: "Inbox",
   viewMode: "list",
@@ -20,14 +20,18 @@ const INBOX_PROJECT = {
   isInbox: true,
 };
 
-function withInboxProject(projects) {
+export function withInboxProject(projects) {
   return projects.some((project) => String(project.id).toLowerCase() === "inbox")
     ? projects
     : [INBOX_PROJECT, ...projects];
 }
 
-function isInboxProjectId(projectId) {
+export function isInboxProjectId(projectId) {
   return String(projectId || "").toLowerCase() === "inbox" || String(projectId || "").toLowerCase().startsWith("inbox");
+}
+
+export function apiProjectId(projectId) {
+  return isInboxProjectId(projectId) ? "inbox" : projectId;
 }
 
 async function getAllTasks(args = {}) {
@@ -38,8 +42,7 @@ async function getAllTasks(args = {}) {
     : projects;
   const results = [];
   for (const project of selected) {
-    const apiProjectId = project.isInbox ? "inbox" : project.id;
-    const data = await ticktickRequest("GET", `/project/${encodeURIComponent(apiProjectId)}/data`);
+    const data = await ticktickRequest("GET", `/project/${encodeURIComponent(apiProjectId(project.id))}/data`);
     const tasks = data.tasks || data.taskList || [];
     for (const task of tasks) {
       results.push({
@@ -252,7 +255,7 @@ export const tools = [
       required: ["projectId"],
       properties: { projectId: { type: "string" } },
     },
-    handler: async (args) => ticktickRequest("GET", `/project/${encodeURIComponent(args.projectId)}/data`),
+    handler: async (args) => ticktickRequest("GET", `/project/${encodeURIComponent(apiProjectId(args.projectId))}/data`),
   },
   {
     name: "ticktick_get_task",

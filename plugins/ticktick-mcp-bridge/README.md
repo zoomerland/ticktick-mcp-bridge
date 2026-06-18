@@ -18,7 +18,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the separation between shared core, t
   - `ticktick_set_bearer_token`
   - `ticktick_clear_auth`
 - Projects/lists:
-- `ticktick_list_projects`
+  - `ticktick_list_projects`
   - `ticktick_get_project`
   - `ticktick_create_project`
   - `ticktick_update_project`
@@ -38,7 +38,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the separation between shared core, t
 
 The raw request tool can call any TickTick Open API endpoint under `https://api.ticktick.com/open/v1`, so newly-added official endpoints can be used before a dedicated tool exists.
 
-`ticktick_list_projects` includes TickTick Inbox as a pseudo-project. TickTick's `/project` response does not list Inbox, so the bridge reads Inbox tasks separately through `/project/inbox/data` when listing or searching tasks.
+`ticktick_list_projects` includes TickTick Inbox as a pseudo-project. TickTick's `/project` response does not list Inbox, so the bridge reads Inbox tasks separately through `/project/inbox/data` when listing or searching tasks. This behavior is covered by `npm run test:inbox`.
 
 ## Local Setup
 
@@ -46,6 +46,13 @@ Install dependencies if you use a regular Node.js checkout:
 
 ```powershell
 npm install
+```
+
+Run local checks:
+
+```powershell
+npm run check
+npm run test:inbox
 ```
 
 Copy `.env.example` to `.env` or set equivalent environment variables:
