@@ -27,18 +27,34 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the separation between shared core, t
 - Tasks:
   - `ticktick_get_task`
   - `ticktick_list_tasks`
+  - `ticktick_search_tasks`
+  - `ticktick_find_task_candidates`
   - `ticktick_today`
+  - `ticktick_overdue`
+  - `ticktick_inbox`
   - `ticktick_analyze_workload`
   - `ticktick_create_task`
   - `ticktick_update_task`
+  - `ticktick_move_task`
   - `ticktick_complete_task`
+  - `ticktick_complete_task_safe`
   - `ticktick_delete_task`
+- Diagnostics:
+  - `ticktick_diagnostics`
 - Escape hatch:
   - `ticktick_raw_request`
 
 The raw request tool can call any TickTick Open API endpoint under `https://api.ticktick.com/open/v1`, so newly-added official endpoints can be used before a dedicated tool exists.
 
 `ticktick_list_projects` includes TickTick Inbox as a pseudo-project. TickTick's `/project` response does not list Inbox, so the bridge reads Inbox tasks separately through `/project/inbox/data` when listing or searching tasks. This behavior is covered by `npm run test:inbox`.
+
+For natural-language task changes, prefer the safe workflow:
+
+1. `ticktick_search_tasks` or `ticktick_find_task_candidates`
+2. If the result is ambiguous, show the candidates instead of acting.
+3. Use `ticktick_complete_task_safe` with exact IDs, or with a query only when it resolves to one safe candidate.
+
+`ticktick_diagnostics` is non-destructive and checks auth, project access, Inbox visibility, and task counts. It is the fastest first check when the bridge looks connected but task results seem incomplete.
 
 ## Local Setup
 
@@ -53,6 +69,7 @@ Run local checks:
 ```powershell
 npm run check
 npm run test:inbox
+npm run test:task-operations
 ```
 
 Copy `.env.example` to `.env` or set equivalent environment variables:

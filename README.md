@@ -7,6 +7,7 @@ TickTick MCP Bridge is a self-hosted MCP server for TickTick. It supports:
 - Codex through local stdio MCP
 - ChatGPT through a self-hosted HTTP `/mcp` endpoint
 - one shared TickTick API core and one shared tool list
+- a three-layer model: normalized TickTick data, agent-safe task workflows, and non-destructive diagnostics
 
 No shared TickTick token is included. Every user authorizes their own TickTick account and stores tokens only in their own local machine or private deployment.
 

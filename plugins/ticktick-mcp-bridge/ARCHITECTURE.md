@@ -8,6 +8,9 @@ This project is the shared TickTick MCP backend for Codex, ChatGPT, and other MC
 src/
   auth-store.mjs        shared OAuth/token storage
   ticktick-api.mjs      TickTick Open API client
+  ticktick-data.mjs     normalized projects, Inbox, tasks, filtering, summaries
+  task-operations.mjs   agent-oriented search, candidates, safe completion, task moves
+  diagnostics.mjs       non-destructive auth/API/Inbox/task visibility checks
   tools.mjs             single MCP tool list and handlers
   mcp-handler.mjs       shared JSON-RPC MCP handler
   server.mjs            HTTP MCP transport for ChatGPT
@@ -21,11 +24,24 @@ connectors:
 
 ## Boundary Rules
 
-- TickTick business logic belongs in `src/ticktick-api.mjs` and `src/tools.mjs`.
+- TickTick HTTP details belong in `src/ticktick-api.mjs`.
+- Data normalization belongs in `src/ticktick-data.mjs`: projects, Inbox, project data, task fields, filters, due buckets, priorities, and workload summaries.
+- Agent workflows belong in `src/task-operations.mjs`: ranked search, candidate decisions, safe completion, Inbox/overdue helpers, and task moves.
+- Health and visibility checks belong in `src/diagnostics.mjs`.
 - Tool names and schemas are defined once in `src/tools.mjs`.
 - Transport-specific code must stay in `src/server.mjs` or `src/transports/*`.
 - Codex plugin or local launcher files must not reimplement TickTick tools. They should only locate this backend and launch the stdio transport.
 - ChatGPT-specific endpoint/tunnel settings must not change Codex stdio behavior.
+
+## Three-Layer Tool Model
+
+The bridge intentionally exposes three layers:
+
+1. Data layer: normalized `Task`, `ChecklistItem`, `Project`, `Column`, and `ProjectData` shapes. This layer preserves useful TickTick fields such as `content`, `desc`, `reminders`, `repeatFlag`, `items`, `kind`, `columnId`, `isAllDay`, `priority`, tags, project names, and due buckets.
+2. Scenario layer: agent-safe operations such as `ticktick_search_tasks`, `ticktick_find_task_candidates`, `ticktick_complete_task_safe`, `ticktick_today`, `ticktick_overdue`, `ticktick_inbox`, `ticktick_create_task`, `ticktick_update_task`, `ticktick_move_task`, and project tools.
+3. Diagnostics layer: `ticktick_diagnostics` checks auth, endpoint availability, Inbox visibility, project counts, and task bucket counts without changing TickTick data.
+
+When adding a new feature, prefer adding data support first, then a scenario tool, then a diagnostic check only if it helps prove visibility or setup.
 
 ## Auth Storage
 

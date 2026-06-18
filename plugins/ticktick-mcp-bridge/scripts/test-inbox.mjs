@@ -5,7 +5,7 @@ import {
   isInboxProjectId,
   projectNameById,
   withInboxProject,
-} from "../src/tools.mjs";
+} from "../src/ticktick-data.mjs";
 
 const regularProjects = [
   { id: "project-a", name: "Project A" },

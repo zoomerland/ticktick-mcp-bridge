@@ -2,97 +2,27 @@ import { clearAuth, loadAuth, redactAuth, saveAuth } from "./auth-store.mjs";
 import {
   buildAuthUrl,
   exchangeAuthorizationCode,
-  isOpenTask,
   prune,
   taskDueBucket,
   ticktickRequest,
 } from "./ticktick-api.mjs";
-
-export function projectNameById(projects) {
-  return Object.fromEntries(projects.map((project) => [project.id, project.name || project.title || project.id]));
-}
-
-export const INBOX_PROJECT = {
-  id: "inbox",
-  name: "Inbox",
-  viewMode: "list",
-  kind: "TASK",
-  isInbox: true,
-};
-
-export function withInboxProject(projects) {
-  return projects.some((project) => String(project.id).toLowerCase() === "inbox")
-    ? projects
-    : [INBOX_PROJECT, ...projects];
-}
-
-export function isInboxProjectId(projectId) {
-  return String(projectId || "").toLowerCase() === "inbox" || String(projectId || "").toLowerCase().startsWith("inbox");
-}
-
-export function apiProjectId(projectId) {
-  return isInboxProjectId(projectId) ? "inbox" : projectId;
-}
-
-async function getAllTasks(args = {}) {
-  const projects = withInboxProject(args.projects || await ticktickRequest("GET", "/project"));
-  const projectNames = projectNameById(projects);
-  const selected = args.projectId
-    ? projects.filter((project) => project.id === args.projectId || (project.isInbox && isInboxProjectId(args.projectId)))
-    : projects;
-  const results = [];
-  for (const project of selected) {
-    const data = await ticktickRequest("GET", `/project/${encodeURIComponent(apiProjectId(project.id))}/data`);
-    const tasks = data.tasks || data.taskList || [];
-    for (const task of tasks) {
-      results.push({
-        ...task,
-        projectId: task.projectId || project.id,
-        projectName: projectNames[task.projectId || project.id] || project.name || project.title,
-      });
-    }
-  }
-  return results;
-}
-
-function filterTasks(tasks, args = {}) {
-  let filtered = tasks;
-  if (args.openOnly !== false) filtered = filtered.filter(isOpenTask);
-  if (args.bucket) filtered = filtered.filter((task) => taskDueBucket(task) === args.bucket);
-  if (args.tag) {
-    const tag = String(args.tag).toLowerCase();
-    filtered = filtered.filter((task) => (task.tags || []).map((x) => String(x).toLowerCase()).includes(tag));
-  }
-  if (args.search) {
-    const needle = String(args.search).toLowerCase();
-    filtered = filtered.filter((task) => `${task.title || ""} ${task.content || ""}`.toLowerCase().includes(needle));
-  }
-  filtered.sort((a, b) => {
-    const aDue = Date.parse(String(a.dueDate || "").replace(/([+-]\d{2})(\d{2})$/, "$1:$2")) || Number.MAX_SAFE_INTEGER;
-    const bDue = Date.parse(String(b.dueDate || "").replace(/([+-]\d{2})(\d{2})$/, "$1:$2")) || Number.MAX_SAFE_INTEGER;
-    const dueCompare = aDue - bDue;
-    if (dueCompare) return dueCompare;
-    return Number(b.priority || 0) - Number(a.priority || 0);
-  });
-  return args.limit ? filtered.slice(0, Number(args.limit)) : filtered;
-}
-
-function workloadSummary(tasks) {
-  const buckets = { overdue: 0, today: 0, next_7_days: 0, later: 0, no_due_date: 0 };
-  const priorities = { none: 0, low: 0, medium: 0, high: 0 };
-  const projects = {};
-  for (const task of tasks.filter(isOpenTask)) {
-    buckets[taskDueBucket(task)] += 1;
-    const priority = Number(task.priority || 0);
-    if (priority >= 5) priorities.high += 1;
-    else if (priority >= 3) priorities.medium += 1;
-    else if (priority >= 1) priorities.low += 1;
-    else priorities.none += 1;
-    const name = task.projectName || task.projectId || "Unknown";
-    projects[name] = (projects[name] || 0) + 1;
-  }
-  return { buckets, priorities, projects, totalOpen: tasks.filter(isOpenTask).length };
-}
+import { runDiagnostics } from "./diagnostics.mjs";
+import {
+  apiProjectId,
+  fetchAllTasks,
+  fetchProjects,
+  filterTasks,
+  workloadSummary,
+} from "./ticktick-data.mjs";
+import {
+  analyzeWorkload,
+  completeTaskSafe,
+  findTaskCandidates,
+  listInboxTasks,
+  listOverdueTasks,
+  moveTask,
+  searchTasks,
+} from "./task-operations.mjs";
 
 const taskFields = {
   id: { type: "string" },
@@ -202,7 +132,7 @@ export const tools = [
     name: "ticktick_list_projects",
     description: "List TickTick projects/lists, including Inbox as a pseudo-project.",
     inputSchema: { type: "object", properties: {} },
-    handler: async () => withInboxProject(await ticktickRequest("GET", "/project")),
+    handler: async () => fetchProjects(),
   },
   {
     name: "ticktick_get_project",
@@ -265,7 +195,7 @@ export const tools = [
       required: ["projectId", "taskId"],
       properties: { projectId: { type: "string" }, taskId: { type: "string" } },
     },
-    handler: async (args) => ticktickRequest("GET", `/project/${encodeURIComponent(args.projectId)}/task/${encodeURIComponent(args.taskId)}`),
+    handler: async (args) => ticktickRequest("GET", `/project/${encodeURIComponent(apiProjectId(args.projectId))}/task/${encodeURIComponent(args.taskId)}`),
   },
   {
     name: "ticktick_list_tasks",
@@ -281,7 +211,42 @@ export const tools = [
         limit: { type: "number" },
       },
     },
-    handler: async (args) => filterTasks(await getAllTasks(args), args),
+    handler: async (args) => filterTasks(await fetchAllTasks(args), args),
+  },
+  {
+    name: "ticktick_search_tasks",
+    description: "Search TickTick tasks across all projects and Inbox, returning ranked candidates with match reasons.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Natural-language text to match against title, content, tags, project, and checklist items." },
+        projectId: { type: "string" },
+        bucket: { type: "string", enum: ["overdue", "today", "next_7_days", "later", "no_due_date"] },
+        tag: { type: "string" },
+        openOnly: { type: "boolean", default: true },
+        limit: { type: "number", default: 20 },
+      },
+    },
+    handler: async (args) => searchTasks(args),
+  },
+  {
+    name: "ticktick_find_task_candidates",
+    description: "Find candidate tasks for a natural-language request and say whether an agent can safely act on one of them.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string" },
+        projectId: { type: "string" },
+        bucket: { type: "string", enum: ["overdue", "today", "next_7_days", "later", "no_due_date"] },
+        tag: { type: "string" },
+        openOnly: { type: "boolean", default: true },
+        allowBestMatch: { type: "boolean", default: false },
+        minScore: { type: "number", default: 45 },
+        minScoreGap: { type: "number", default: 25 },
+        limit: { type: "number", default: 10 },
+      },
+    },
+    handler: async (args) => findTaskCandidates(args),
   },
   {
     name: "ticktick_today",
@@ -291,7 +256,7 @@ export const tools = [
       properties: { includeNext7Days: { type: "boolean", default: false } },
     },
     handler: async (args) => {
-      const tasks = await getAllTasks();
+      const tasks = await fetchAllTasks();
       const buckets = workloadSummary(tasks).buckets;
       const wanted = new Set(["overdue", "today"]);
       if (args.includeNext7Days) wanted.add("next_7_days");
@@ -311,14 +276,35 @@ export const tools = [
         limit: { type: "number", default: 40 },
       },
     },
-    handler: async (args) => {
-      const tasks = filterTasks(await getAllTasks(), { openOnly: true, limit: args.limit || 40 });
-      return {
-        generatedAt: new Date().toISOString(),
-        summary: workloadSummary(tasks),
-        tasks: args.includeTasks === false ? undefined : tasks,
-      };
+    handler: async (args) => analyzeWorkload(args),
+  },
+  {
+    name: "ticktick_overdue",
+    description: "Return open overdue TickTick tasks across all projects and Inbox.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        projectId: { type: "string" },
+        tag: { type: "string" },
+        openOnly: { type: "boolean", default: true },
+        limit: { type: "number", default: 20 },
+      },
     },
+    handler: async (args) => listOverdueTasks(args),
+  },
+  {
+    name: "ticktick_inbox",
+    description: "Return TickTick Inbox tasks. Inbox is not returned by the normal /project endpoint, so this tool checks it explicitly.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        search: { type: "string" },
+        tag: { type: "string" },
+        openOnly: { type: "boolean", default: true },
+        limit: { type: "number", default: 20 },
+      },
+    },
+    handler: async (args) => listInboxTasks(args),
   },
   {
     name: "ticktick_create_task",
@@ -344,6 +330,20 @@ export const tools = [
     },
   },
   {
+    name: "ticktick_move_task",
+    description: "Move a TickTick task to another project/list, optionally into a Kanban column.",
+    inputSchema: {
+      type: "object",
+      required: ["taskId", "targetProjectId"],
+      properties: {
+        taskId: { type: "string" },
+        targetProjectId: { type: "string" },
+        columnId: { type: "string" },
+      },
+    },
+    handler: async (args) => moveTask(args),
+  },
+  {
     name: "ticktick_complete_task",
     description: "Complete a TickTick task by project ID and task ID.",
     inputSchema: {
@@ -351,7 +351,27 @@ export const tools = [
       required: ["projectId", "taskId"],
       properties: { projectId: { type: "string" }, taskId: { type: "string" } },
     },
-    handler: async (args) => ticktickRequest("POST", `/project/${encodeURIComponent(args.projectId)}/task/${encodeURIComponent(args.taskId)}/complete`),
+    handler: async (args) => ticktickRequest("POST", `/project/${encodeURIComponent(apiProjectId(args.projectId))}/task/${encodeURIComponent(args.taskId)}/complete`),
+  },
+  {
+    name: "ticktick_complete_task_safe",
+    description: "Complete a task only when exact IDs are provided or a natural-language query resolves to one safe candidate.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        projectId: { type: "string" },
+        taskId: { type: "string" },
+        query: { type: "string" },
+        bucket: { type: "string", enum: ["overdue", "today", "next_7_days", "later", "no_due_date"] },
+        tag: { type: "string" },
+        dryRun: { type: "boolean", default: false },
+        allowBestMatch: { type: "boolean", default: false },
+        minScore: { type: "number", default: 45 },
+        minScoreGap: { type: "number", default: 25 },
+        limit: { type: "number", default: 10 },
+      },
+    },
+    handler: async (args) => completeTaskSafe(args),
   },
   {
     name: "ticktick_delete_task",
@@ -361,7 +381,18 @@ export const tools = [
       required: ["projectId", "taskId"],
       properties: { projectId: { type: "string" }, taskId: { type: "string" } },
     },
-    handler: async (args) => ticktickRequest("DELETE", `/project/${encodeURIComponent(args.projectId)}/task/${encodeURIComponent(args.taskId)}`),
+    handler: async (args) => ticktickRequest("DELETE", `/project/${encodeURIComponent(apiProjectId(args.projectId))}/task/${encodeURIComponent(args.taskId)}`),
+  },
+  {
+    name: "ticktick_diagnostics",
+    description: "Run non-destructive diagnostics for auth, TickTick endpoint access, Inbox visibility, and task/project counts.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        includeTaskCounts: { type: "boolean", default: true },
+      },
+    },
+    handler: async (args) => runDiagnostics(args),
   },
   {
     name: "ticktick_raw_request",
