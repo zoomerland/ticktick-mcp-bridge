@@ -1,7 +1,8 @@
 {
-  "mcpServers": {
+  "mcp_servers": {
     "ticktick-mcp-bridge": {
       "command": "cmd.exe",
+      "cwd": ".",
       "args": [
         "/d",
         "/s",
