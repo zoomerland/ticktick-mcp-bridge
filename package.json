@@ -1,0 +1,19 @@
+{
+  "name": "ticktick-mcp-bridge",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Self-hosted TickTick MCP server for ChatGPT, Codex, and other MCP clients.",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "start:http": "node src/server.mjs",
+    "start:chatgpt": "node src/server.mjs",
+    "start:stdio": "node src/transports/stdio.mjs",
+    "start:codex": "node src/transports/stdio.mjs",
+    "check": "node --check src/server.mjs && node --check src/mcp-handler.mjs && node --check src/transports/stdio.mjs && node --check src/tools.mjs && node --check src/ticktick-api.mjs && node --check src/auth-store.mjs",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

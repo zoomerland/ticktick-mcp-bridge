@@ -1,0 +1,15 @@
+{
+  "displayName": "TickTick Assistant",
+  "description": "Read, create, update, complete, delete, and analyze TickTick tasks and projects through TickTick Open API.",
+  "mcpServerUrl": "https://YOUR_PUBLIC_HOST/mcp",
+  "authentication": "none-or-bearer",
+  "scopes": [
+    "tasks:read",
+    "tasks:write"
+  ],
+  "notes": [
+    "Use ChatGPT Developer Mode > Apps > Create app.",
+    "For local testing, expose this server with a secure tunnel and use the tunnel URL plus /mcp.",
+    "If APP_SHARED_SECRET is set, configure the app/client to send it as a Bearer token."
+  ]
+}
