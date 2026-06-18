@@ -26,6 +26,7 @@ The bundled Codex launcher is Windows-friendly and searches for Node.js in `CODE
 
 The Codex plugin starts the local stdio MCP transport. For ChatGPT, follow the self-hosting guide:
 
+- [User guide](plugins/ticktick-mcp-bridge/docs/USER_GUIDE.md)
 - [Authorization](plugins/ticktick-mcp-bridge/docs/AUTH.md)
 - [Self-hosting](plugins/ticktick-mcp-bridge/docs/SELF_HOSTING.md)
 - [Architecture](plugins/ticktick-mcp-bridge/ARCHITECTURE.md)

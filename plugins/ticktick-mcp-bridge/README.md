@@ -7,9 +7,12 @@ The TickTick API logic and MCP tool definitions live here once. Codex uses the s
 This project does not include any shared TickTick token. Each user runs their own instance, creates or provides their own TickTick OAuth credentials, authorizes TickTick once, and stores tokens only in their own local or private deployment storage.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the separation between shared core, transports, and connector-specific configuration.
+Start with [docs/USER_GUIDE.md](docs/USER_GUIDE.md) for a user-facing overview of what the plugin can and cannot do.
 See [docs/OFFICIAL_API_COVERAGE.md](docs/OFFICIAL_API_COVERAGE.md) for the current official TickTick endpoint coverage and Swagger/OpenAPI JSON probe notes.
 
 ## What It Exposes
+
+For a less technical walkthrough with example prompts, see [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
 
 - OAuth/setup helpers:
   - `ticktick_auth_status`
