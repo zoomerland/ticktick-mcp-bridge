@@ -12,15 +12,34 @@ function projectNameById(projects) {
   return Object.fromEntries(projects.map((project) => [project.id, project.name || project.title || project.id]));
 }
 
+const INBOX_PROJECT = {
+  id: "inbox",
+  name: "Inbox",
+  viewMode: "list",
+  kind: "TASK",
+  isInbox: true,
+};
+
+function withInboxProject(projects) {
+  return projects.some((project) => String(project.id).toLowerCase() === "inbox")
+    ? projects
+    : [INBOX_PROJECT, ...projects];
+}
+
+function isInboxProjectId(projectId) {
+  return String(projectId || "").toLowerCase() === "inbox" || String(projectId || "").toLowerCase().startsWith("inbox");
+}
+
 async function getAllTasks(args = {}) {
-  const projects = args.projects || await ticktickRequest("GET", "/project");
+  const projects = withInboxProject(args.projects || await ticktickRequest("GET", "/project"));
   const projectNames = projectNameById(projects);
   const selected = args.projectId
-    ? projects.filter((project) => project.id === args.projectId)
+    ? projects.filter((project) => project.id === args.projectId || (project.isInbox && isInboxProjectId(args.projectId)))
     : projects;
   const results = [];
   for (const project of selected) {
-    const data = await ticktickRequest("GET", `/project/${encodeURIComponent(project.id)}/data`);
+    const apiProjectId = project.isInbox ? "inbox" : project.id;
+    const data = await ticktickRequest("GET", `/project/${encodeURIComponent(apiProjectId)}/data`);
     const tasks = data.tasks || data.taskList || [];
     for (const task of tasks) {
       results.push({
@@ -178,9 +197,9 @@ export const tools = [
   },
   {
     name: "ticktick_list_projects",
-    description: "List TickTick projects/lists.",
+    description: "List TickTick projects/lists, including Inbox as a pseudo-project.",
     inputSchema: { type: "object", properties: {} },
-    handler: async () => ticktickRequest("GET", "/project"),
+    handler: async () => withInboxProject(await ticktickRequest("GET", "/project")),
   },
   {
     name: "ticktick_get_project",

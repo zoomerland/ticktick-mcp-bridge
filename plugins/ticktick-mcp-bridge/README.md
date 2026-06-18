@@ -18,7 +18,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the separation between shared core, t
   - `ticktick_set_bearer_token`
   - `ticktick_clear_auth`
 - Projects/lists:
-  - `ticktick_list_projects`
+- `ticktick_list_projects`
   - `ticktick_get_project`
   - `ticktick_create_project`
   - `ticktick_update_project`
@@ -37,6 +37,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the separation between shared core, t
   - `ticktick_raw_request`
 
 The raw request tool can call any TickTick Open API endpoint under `https://api.ticktick.com/open/v1`, so newly-added official endpoints can be used before a dedicated tool exists.
+
+`ticktick_list_projects` includes TickTick Inbox as a pseudo-project. TickTick's `/project` response does not list Inbox, so the bridge reads Inbox tasks separately through `/project/inbox/data` when listing or searching tasks.
 
 ## Local Setup
 

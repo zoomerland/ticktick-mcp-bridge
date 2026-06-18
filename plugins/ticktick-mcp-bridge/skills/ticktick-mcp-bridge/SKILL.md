@@ -31,6 +31,7 @@ Do not store the user's TickTick, Google, or email password.
 - Use `ticktick_create_task` for new tasks.
 - Use `ticktick_get_project_data` or `ticktick_list_tasks` before completing, updating, or deleting a task identified by title instead of ID.
 - Use `ticktick_get_task` by ID for final verification after changing a task.
+- Remember that TickTick Inbox is included as a pseudo-project. Search/list calls should include Inbox tasks as well as normal projects.
 
 ## API Notes
 
