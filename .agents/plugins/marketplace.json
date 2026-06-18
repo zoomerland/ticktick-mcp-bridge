@@ -1,0 +1,20 @@
+{
+  "name": "ticktick-mcp-bridge",
+  "interface": {
+    "displayName": "TickTick MCP Bridge"
+  },
+  "plugins": [
+    {
+      "name": "ticktick-mcp-bridge",
+      "source": {
+        "source": "local",
+        "path": "./plugins/ticktick-mcp-bridge"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

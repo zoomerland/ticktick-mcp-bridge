@@ -1,0 +1,41 @@
+{
+  "name": "ticktick-mcp-bridge",
+  "version": "0.1.0",
+  "description": "Self-hosted TickTick MCP bridge for Codex, ChatGPT, and other MCP clients.",
+  "author": {
+    "name": "Zumerland",
+    "url": "https://github.com/zoomerland"
+  },
+  "homepage": "https://github.com/zoomerland/ticktick-mcp-bridge",
+  "repository": "https://github.com/zoomerland/ticktick-mcp-bridge",
+  "license": "MIT",
+  "keywords": [
+    "ticktick",
+    "mcp",
+    "tasks",
+    "productivity",
+    "codex",
+    "chatgpt"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "TickTick MCP Bridge",
+    "shortDescription": "Use TickTick tasks and projects through a self-hosted MCP bridge.",
+    "longDescription": "TickTick MCP Bridge connects Codex to the TickTick Open API through a local stdio MCP server. The same backend can also be self-hosted as an HTTP MCP endpoint for ChatGPT. Each user brings their own TickTick OAuth app or bearer token; no shared token is included.",
+    "developerName": "Zumerland",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/zoomerland/ticktick-mcp-bridge",
+    "defaultPrompt": [
+      "Show my TickTick tasks for today.",
+      "Add a TickTick task for tomorrow.",
+      "Review my TickTick workload."
+    ],
+    "brandColor": "#4772FA"
+  }
+}

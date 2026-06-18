@@ -2,7 +2,7 @@ import { TickTickError } from "./ticktick-api.mjs";
 import { toolMap, tools } from "./tools.mjs";
 
 export const SERVER_INFO = {
-  name: "ticktick-assistant",
+  name: "ticktick-mcp-bridge",
   version: "0.2.0",
 };
 
