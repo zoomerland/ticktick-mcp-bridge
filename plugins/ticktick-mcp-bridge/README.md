@@ -97,6 +97,7 @@ Copy `.env.example` to `.env` or set equivalent environment variables:
 
 ```powershell
 $env:PORT = "8787"
+$env:BIND_HOST = "127.0.0.1"
 $env:PUBLIC_BASE_URL = "http://127.0.0.1:8787"
 $env:TICKTICK_CLIENT_ID = "your-client-id"
 $env:TICKTICK_CLIENT_SECRET = "your-client-secret"
@@ -134,13 +135,15 @@ ChatGPT needs a remote HTTPS MCP URL. For local testing, expose this server with
 For a persistent setup, deploy this server to a private host and set:
 
 ```text
+BIND_HOST=127.0.0.1
 PUBLIC_BASE_URL=https://YOUR_PUBLIC_HOST
 TICKTICK_REDIRECT_URI=https://YOUR_PUBLIC_HOST/oauth/callback
+APP_SHARED_SECRET=long-random-secret
 ```
 
 Then update the TickTick developer app redirect URI to match.
 
-See [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md) for deployment notes.
+See [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md) for deployment notes and [docs/VPS_DEPLOYMENT.md](docs/VPS_DEPLOYMENT.md) for an optional VPS recipe.
 
 ## Codex
 
@@ -158,7 +161,7 @@ If this project is moved, set `TICKTICK_MCP_HOME` to the project root before lau
 
 ## Security Notes
 
-- Do not expose this server publicly without authentication.
+- Do not expose this server publicly without authentication. The HTTP server binds to `127.0.0.1` by default; set `BIND_HOST=0.0.0.0` only when you intentionally expose it and have `APP_SHARED_SECRET` configured.
 - If `APP_SHARED_SECRET` is set, MCP requests must include `Authorization: Bearer <secret>`.
 - Write tools can create, update, complete, and delete TickTick data. ChatGPT may ask for confirmation for consequential actions, but the server itself will execute valid tool calls.
 - The setup tools accept secrets as arguments. For production, prefer environment variables and disable public access to setup flows at the network layer.

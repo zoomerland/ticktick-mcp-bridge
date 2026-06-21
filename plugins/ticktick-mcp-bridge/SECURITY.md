@@ -31,6 +31,8 @@ Authorization: Bearer <long-random-value>
 
 Do not expose the HTTP server publicly without authentication. The server includes write tools that can create, update, complete, and delete TickTick tasks.
 
+The HTTP server binds to `127.0.0.1` by default. For a VPS behind a reverse proxy, keep that default and let the proxy provide HTTPS. Set `BIND_HOST=0.0.0.0` only when you intentionally expose Node directly, and always set `APP_SHARED_SECRET`.
+
 ## OAuth Model
 
 This project is not a hosted multi-tenant SaaS. Each user should run their own instance and authorize their own TickTick account.
