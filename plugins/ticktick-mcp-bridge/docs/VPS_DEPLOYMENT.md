@@ -39,9 +39,16 @@ Caddy listens on ports `80` and `443`, obtains the certificate, and proxies to N
 
 Good low-cost starting points:
 
-- Oracle Cloud Always Free VM.
 - Google Cloud e2-micro Always Free, if you stay inside free-tier limits.
 - A home server with Cloudflare Tunnel when a VPS is not available.
+
+For Google Cloud, use Compute Engine with the Always Free `e2-micro` shape in one of the supported US regions:
+
+- `us-west1`
+- `us-central1`
+- `us-east1`
+
+Keep the disk inside the free standard persistent disk allowance and avoid premium disks, GPUs, extra static IPs, load balancers, or paid regions.
 
 You still need a stable hostname. A real domain or stable subdomain is much easier than a temporary tunnel URL because the same URL must be configured in:
 

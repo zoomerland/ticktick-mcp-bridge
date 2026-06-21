@@ -23,7 +23,6 @@ ChatGPT needs a public HTTPS URL, so local-only HTTP is mainly for testing.
 Good fits:
 
 - a small VPS
-- Oracle Cloud Always Free VM
 - Google Cloud e2-micro Always Free, if configured inside free-tier limits
 - Koyeb free web service for hobby/testing
 - a home server with Cloudflare Tunnel or another stable HTTPS tunnel
