@@ -129,8 +129,13 @@ ChatGPT needs a remote HTTPS MCP URL. For local testing, expose this server with
 1. ChatGPT settings -> Apps -> Advanced settings -> Developer mode.
 2. Create app.
 3. MCP server URL: `https://YOUR_PUBLIC_HOST/mcp`.
-4. Authentication: none for private local testing, or bearer if `APP_SHARED_SECRET` is configured.
-5. Scan tools.
+4. Authentication: OAuth.
+5. Authorization URL: `https://YOUR_PUBLIC_HOST/oauth/authorize`.
+6. Token URL: `https://YOUR_PUBLIC_HOST/oauth/token`.
+7. Client ID: `CHATGPT_OAUTH_CLIENT_ID`.
+8. Client secret: `CHATGPT_OAUTH_CLIENT_SECRET`.
+9. Scopes: `ticktick:read ticktick:write`.
+10. Scan tools.
 
 For a persistent setup, deploy this server to a private host and set:
 
@@ -139,6 +144,9 @@ BIND_HOST=127.0.0.1
 PUBLIC_BASE_URL=https://YOUR_PUBLIC_HOST
 TICKTICK_REDIRECT_URI=https://YOUR_PUBLIC_HOST/oauth/callback
 APP_SHARED_SECRET=long-random-secret
+CHATGPT_OAUTH_CLIENT_ID=ticktick-mcp-chatgpt
+CHATGPT_OAUTH_CLIENT_SECRET=long-random-chatgpt-oauth-client-secret
+CHATGPT_OAUTH_TOKEN_SECRET=long-random-token-signing-secret
 ```
 
 Then update the TickTick developer app redirect URI to match.

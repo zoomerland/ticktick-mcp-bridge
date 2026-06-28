@@ -46,6 +46,9 @@ TICKTICK_CLIENT_ID=your-client-id
 TICKTICK_CLIENT_SECRET=your-client-secret
 TICKTICK_REDIRECT_URI=https://YOUR_PUBLIC_HOST/oauth/callback
 APP_SHARED_SECRET=long-random-secret
+CHATGPT_OAUTH_CLIENT_ID=ticktick-mcp-chatgpt
+CHATGPT_OAUTH_CLIENT_SECRET=long-random-chatgpt-oauth-client-secret
+CHATGPT_OAUTH_TOKEN_SECRET=long-random-token-signing-secret
 ```
 
 For a VPS behind a reverse proxy, keep `BIND_HOST=127.0.0.1`. Use `BIND_HOST=0.0.0.0` only when you intentionally expose the Node server directly, and always set `APP_SHARED_SECRET`.

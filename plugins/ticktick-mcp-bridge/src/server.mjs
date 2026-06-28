@@ -3,6 +3,14 @@ import { URL } from "node:url";
 import { buildAuthUrl, exchangeAuthorizationCode } from "./ticktick-api.mjs";
 import { redactAuth } from "./auth-store.mjs";
 import { handleRpc, listToolDescriptors, SERVER_INFO } from "./mcp-handler.mjs";
+import {
+  authorizationServerMetadata,
+  handleAuthorize,
+  handleToken,
+  oauthChallenge,
+  protectedResourceMetadata,
+  verifyOAuthAccessToken,
+} from "./chatgpt-oauth.mjs";
 
 const PORT = Number(process.env.PORT || 8787);
 const BIND_HOST = process.env.BIND_HOST || process.env.HOST || "127.0.0.1";
@@ -82,12 +90,14 @@ async function readJsonRequest(req) {
 function isAuthorized(req) {
   if (!APP_SHARED_SECRET) return true;
   const auth = req.headers.authorization || "";
-  return auth === `Bearer ${APP_SHARED_SECRET}`;
+  const match = /^Bearer\s+(.+)$/i.exec(auth);
+  if (!match) return false;
+  return match[1] === APP_SHARED_SECRET || verifyOAuthAccessToken(match[1]);
 }
 
 async function handleMcp(req, res) {
   if (!isAuthorized(req)) {
-    sendJson(res, 401, { error: "Unauthorized" }, { "WWW-Authenticate": "Bearer" });
+    sendJson(res, 401, { error: "Unauthorized" }, { "WWW-Authenticate": oauthChallenge() });
     return;
   }
   if (req.method === "GET") {
@@ -168,6 +178,8 @@ const server = http.createServer(async (req, res) => {
       oauthStart: "/oauth/start",
       bindHost: BIND_HOST,
       authRequired: Boolean(APP_SHARED_SECRET),
+      oauthAuthorizationServer: "/.well-known/oauth-authorization-server",
+      oauthProtectedResource: "/.well-known/oauth-protected-resource",
       auth: redactAuth(),
       tools: listToolDescriptors().map((tool) => tool.name),
     });
@@ -177,8 +189,24 @@ const server = http.createServer(async (req, res) => {
     sendJson(res, 200, { tools: listToolDescriptors() });
     return;
   }
+  if (url.pathname === "/.well-known/oauth-protected-resource") {
+    sendJson(res, 200, protectedResourceMetadata());
+    return;
+  }
+  if (url.pathname === "/.well-known/oauth-authorization-server" || url.pathname === "/.well-known/openid-configuration") {
+    sendJson(res, 200, authorizationServerMetadata());
+    return;
+  }
   if (url.pathname === "/mcp" || url.pathname === "/sse") {
     await handleMcp(req, res);
+    return;
+  }
+  if (url.pathname === "/oauth/authorize") {
+    handleAuthorize(req, res, sendHtml);
+    return;
+  }
+  if (url.pathname === "/oauth/token") {
+    await handleToken(req, res, sendJson);
     return;
   }
   if (url.pathname === "/oauth/start") {
