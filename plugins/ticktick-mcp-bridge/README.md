@@ -134,7 +134,7 @@ ChatGPT needs a remote HTTPS MCP URL. For local testing, expose this server with
 6. Token URL: `https://YOUR_PUBLIC_HOST/oauth/token`.
 7. Client ID: `CHATGPT_OAUTH_CLIENT_ID`.
 8. Client secret: `CHATGPT_OAUTH_CLIENT_SECRET`.
-9. Scopes: `ticktick:read ticktick:write`.
+9. Scopes: `ticktick:read ticktick:write` if the field accepts custom scopes. If ChatGPT only offers preset scopes such as `default`, `standard`, or `post`, choose the preset ChatGPT allows; the server will still grant its configured MCP scopes.
 10. Scan tools.
 
 For a persistent setup, deploy this server to a private host and set:

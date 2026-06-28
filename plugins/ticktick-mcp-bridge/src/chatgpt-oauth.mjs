@@ -3,6 +3,7 @@ import { URLSearchParams } from "node:url";
 import { publicBaseUrl } from "./auth-store.mjs";
 
 const DEFAULT_SCOPE = "ticktick:read ticktick:write";
+const COMPATIBILITY_SCOPES = new Set(["default", "post", "standard"]);
 const TOKEN_TTL_SECONDS = 60 * 60;
 const CODE_TTL_MS = 5 * 60 * 1000;
 const authorizationCodes = new Map();
@@ -13,6 +14,21 @@ function baseUrl() {
 
 function scopes() {
   return (process.env.CHATGPT_OAUTH_SCOPES || DEFAULT_SCOPE).split(/\s+/).filter(Boolean);
+}
+
+function parseScopeList(value) {
+  return String(value || "").split(/\s+/).filter(Boolean);
+}
+
+function grantedScopes(requestedScope) {
+  const supported = scopes();
+  const granted = new Set(supported);
+  for (const scope of parseScopeList(requestedScope)) {
+    if (supported.includes(scope) || COMPATIBILITY_SCOPES.has(scope)) {
+      granted.add(scope);
+    }
+  }
+  return Array.from(granted);
 }
 
 function clientId() {
@@ -155,7 +171,7 @@ export function handleAuthorize(req, res, sendHtml) {
       redirectUri,
       codeChallenge: url.searchParams.get("code_challenge"),
       resource: requestedResource,
-      scope: url.searchParams.get("scope") || scopes().join(" "),
+      scope: grantedScopes(url.searchParams.get("scope")).join(" "),
       expiresAt: Date.now() + CODE_TTL_MS,
     });
 

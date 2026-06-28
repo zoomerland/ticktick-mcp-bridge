@@ -221,6 +221,10 @@ Client secret: the CHATGPT_OAUTH_CLIENT_SECRET value
 Scopes: ticktick:read ticktick:write
 ```
 
+If ChatGPT only offers preset scope choices such as `default`, `standard`, or
+`post`, choose the preset ChatGPT allows. The MCP server grants its configured
+scopes and treats those presets as client compatibility aliases.
+
 Then scan tools and refresh metadata after each deploy that changes tools.
 
 ## Update
