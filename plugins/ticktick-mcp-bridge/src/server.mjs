@@ -5,7 +5,38 @@ import { redactAuth } from "./auth-store.mjs";
 import { handleRpc, listToolDescriptors, SERVER_INFO } from "./mcp-handler.mjs";
 
 const PORT = Number(process.env.PORT || 8787);
+const BIND_HOST = process.env.BIND_HOST || process.env.HOST || "127.0.0.1";
 const APP_SHARED_SECRET = process.env.APP_SHARED_SECRET || "";
+const ALLOW_UNAUTHENTICATED_PUBLIC_MCP = process.env.ALLOW_UNAUTHENTICATED_PUBLIC_MCP === "true";
+
+function isLoopbackHost(hostname) {
+  const value = String(hostname || "").toLowerCase();
+  return value === "localhost" || value === "127.0.0.1" || value === "::1" || value === "[::1]";
+}
+
+function publicBaseHost() {
+  if (!process.env.PUBLIC_BASE_URL) return null;
+  try {
+    return new URL(process.env.PUBLIC_BASE_URL).hostname;
+  } catch {
+    return null;
+  }
+}
+
+function isPublicBind(host) {
+  return host === "0.0.0.0" || host === "::" || host === "";
+}
+
+function assertSafePublicAuthConfig() {
+  const baseHost = publicBaseHost();
+  const remotePublicBase = baseHost && !isLoopbackHost(baseHost);
+  const publicBind = isPublicBind(BIND_HOST);
+  if ((remotePublicBase || publicBind) && !APP_SHARED_SECRET && !ALLOW_UNAUTHENTICATED_PUBLIC_MCP) {
+    console.error("Refusing to start public TickTick MCP HTTP server without APP_SHARED_SECRET.");
+    console.error("Set APP_SHARED_SECRET to a long random value, or set ALLOW_UNAUTHENTICATED_PUBLIC_MCP=true only for private testing.");
+    process.exit(1);
+  }
+}
 
 function sendJson(res, status, value, extraHeaders = {}) {
   const body = Buffer.from(JSON.stringify(value, null, 2), "utf8");
@@ -56,7 +87,7 @@ function isAuthorized(req) {
 
 async function handleMcp(req, res) {
   if (!isAuthorized(req)) {
-    sendJson(res, 401, { error: "Unauthorized" });
+    sendJson(res, 401, { error: "Unauthorized" }, { "WWW-Authenticate": "Bearer" });
     return;
   }
   if (req.method === "GET") {
@@ -135,6 +166,8 @@ const server = http.createServer(async (req, res) => {
       version: SERVER_INFO.version,
       mcp: "/mcp",
       oauthStart: "/oauth/start",
+      bindHost: BIND_HOST,
+      authRequired: Boolean(APP_SHARED_SECRET),
       auth: redactAuth(),
       tools: listToolDescriptors().map((tool) => tool.name),
     });
@@ -159,10 +192,13 @@ const server = http.createServer(async (req, res) => {
   sendJson(res, 404, { error: "Not found" });
 });
 
-server.listen(PORT, "0.0.0.0", () => {
+assertSafePublicAuthConfig();
+
+server.listen(PORT, BIND_HOST, () => {
   const auth = redactAuth();
-  console.log(`${SERVER_INFO.name} HTTP MCP transport listening on http://127.0.0.1:${PORT}`);
+  console.log(`${SERVER_INFO.name} HTTP MCP transport listening on http://${BIND_HOST}:${PORT}`);
   console.log(`MCP endpoint: /mcp`);
   console.log(`Tools registered: ${listToolDescriptors().length}`);
+  console.log(`MCP bearer auth required: ${APP_SHARED_SECRET ? "yes" : "no"}`);
   console.log(`TickTick auth configured: ${auth.hasAccessToken ? "yes" : "no"} (${auth.storagePath})`);
 });

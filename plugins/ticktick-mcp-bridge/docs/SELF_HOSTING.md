@@ -1,6 +1,6 @@
 # Self-Hosting
 
-This project is designed for single-user self-hosting.
+This project is designed for single-user self-hosting. The Codex marketplace plugin can still run fully locally through stdio; HTTP self-hosting is optional and mainly for ChatGPT or other remote MCP clients.
 
 ## Local Development
 
@@ -23,10 +23,11 @@ ChatGPT needs a public HTTPS URL, so local-only HTTP is mainly for testing.
 Good fits:
 
 - a small VPS
-- Oracle Cloud Always Free VM
 - Google Cloud e2-micro Always Free, if configured inside free-tier limits
 - Koyeb free web service for hobby/testing
 - a home server with Cloudflare Tunnel or another stable HTTPS tunnel
+
+See [VPS_DEPLOYMENT.md](VPS_DEPLOYMENT.md) for an optional VPS recipe with Caddy, systemd, and bearer authentication.
 
 Avoid relying on random temporary tunnel URLs as permanent ChatGPT endpoints. If the URL changes, update:
 
@@ -39,12 +40,15 @@ Avoid relying on random temporary tunnel URLs as permanent ChatGPT endpoints. If
 
 ```text
 PORT=8787
+BIND_HOST=127.0.0.1
 PUBLIC_BASE_URL=https://YOUR_PUBLIC_HOST
 TICKTICK_CLIENT_ID=your-client-id
 TICKTICK_CLIENT_SECRET=your-client-secret
 TICKTICK_REDIRECT_URI=https://YOUR_PUBLIC_HOST/oauth/callback
 APP_SHARED_SECRET=long-random-secret
 ```
+
+For a VPS behind a reverse proxy, keep `BIND_HOST=127.0.0.1`. Use `BIND_HOST=0.0.0.0` only when you intentionally expose the Node server directly, and always set `APP_SHARED_SECRET`.
 
 ## Health Checks
 
