@@ -2,6 +2,7 @@ import { clearAuth, loadAuth, redactAuth, saveAuth } from "./auth-store.mjs";
 import {
   buildAuthUrl,
   exchangeAuthorizationCode,
+  parseDate,
   prune,
   taskDueBucket,
   ticktickRequest,
@@ -43,21 +44,38 @@ import {
   searchTasks,
 } from "./task-operations.mjs";
 
+const checklistItemSchema = {
+  type: "object",
+  properties: {
+    id: { type: "string" },
+    title: { type: "string" },
+    startDate: { type: "string" },
+    isAllDay: { type: "boolean" },
+    sortOrder: { type: "number" },
+    timeZone: { type: "string" },
+    status: { type: "number", enum: [0, 1], description: "Checklist item status: 0 normal, 1 completed." },
+    completedTime: { type: "string" },
+  },
+};
+
 const taskFields = {
   id: { type: "string" },
   title: { type: "string" },
   content: { type: "string" },
-  projectId: { type: "string" },
+  desc: { type: "string", description: "Checklist description." },
+  projectId: { type: "string", description: "Project/list ID. Use inbox for TickTick Inbox when supported by the endpoint." },
   dueDate: { type: "string", description: "Example: 2026-06-01T09:00:00+0000" },
   startDate: { type: "string" },
   timeZone: { type: "string" },
   isAllDay: { type: "boolean" },
-  priority: { type: "number", description: "TickTick priority: 0 none, 1 low, 3 medium, 5 high." },
+  priority: { type: "number", enum: [0, 1, 3, 5], description: "TickTick priority: 0 none, 1 low, 3 medium, 5 high." },
   tags: { type: "array", items: { type: "string" } },
-  items: { type: "array", items: { type: "object" } },
-  kind: { type: "string" },
+  items: { type: "array", items: checklistItemSchema },
+  kind: { type: "string", enum: ["TEXT", "NOTE", "CHECKLIST"] },
   columnId: { type: "string" },
   sortOrder: { type: "number" },
+  reminders: { type: "array", items: { type: "string" } },
+  repeatFlag: { type: "string" },
 };
 
 const projectFields = {
@@ -68,6 +86,32 @@ const projectFields = {
   kind: { type: "string", description: "Common value: TASK." },
   groupId: { type: "string" },
 };
+
+function validateDateFields(args = {}) {
+  const errors = [];
+  for (const field of ["startDate", "dueDate", "completedTime"]) {
+    if (args[field] && !parseDate(args[field])) errors.push(`${field} must be a valid TickTick date-time, for example 2026-07-01T09:00:00+0300`);
+  }
+  if (args.startDate && args.dueDate) {
+    const start = parseDate(args.startDate);
+    const due = parseDate(args.dueDate);
+    if (start && due && start > due) errors.push("startDate must be earlier than or equal to dueDate");
+  }
+  if (Array.isArray(args.items)) {
+    args.items.forEach((item, index) => {
+      for (const field of ["startDate", "completedTime"]) {
+        if (item?.[field] && !parseDate(item[field])) errors.push(`items[${index}].${field} must be a valid TickTick date-time`);
+      }
+    });
+  }
+  return errors;
+}
+
+export function officialTaskPayload(args = {}) {
+  const payload = { ...args };
+  if (payload.projectId) payload.projectId = apiProjectId(payload.projectId);
+  return prune(payload);
+}
 
 export const tools = [
   {
@@ -358,25 +402,27 @@ export const tools = [
   },
   {
     name: "ticktick_create_task",
-    description: "Create a TickTick task. Use projectId to choose a list; omit it for TickTick default behavior.",
+    description: "Create a TickTick task. The official TickTick Open API requires projectId.",
     inputSchema: {
       type: "object",
-      required: ["title"],
+      required: ["title", "projectId"],
       properties: taskFields,
     },
-    handler: async (args) => ticktickRequest("POST", "/task", prune(args)),
+    validate: validateDateFields,
+    handler: async (args) => ticktickRequest("POST", "/task", officialTaskPayload(args)),
   },
   {
     name: "ticktick_update_task",
-    description: "Update a TickTick task by task ID. Include fields to change, such as title, content, projectId, dueDate, priority, tags, or checklist items.",
+    description: "Update a TickTick task by task ID. The official TickTick Open API requires projectId and the request body must include the task id.",
     inputSchema: {
       type: "object",
-      required: ["taskId"],
+      required: ["taskId", "projectId"],
       properties: { taskId: { type: "string" }, ...taskFields },
     },
+    validate: validateDateFields,
     handler: async (args) => {
       const { taskId, ...payload } = args;
-      return ticktickRequest("POST", `/task/${encodeURIComponent(taskId)}`, prune(payload));
+      return ticktickRequest("POST", `/task/${encodeURIComponent(taskId)}`, officialTaskPayload({ ...payload, id: taskId }));
     },
   },
   {
