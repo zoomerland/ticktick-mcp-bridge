@@ -151,7 +151,7 @@ CHATGPT_OAUTH_TOKEN_SECRET=long-random-token-signing-secret
 
 Then update the TickTick developer app redirect URI to match.
 
-See [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md) for deployment notes and [docs/VPS_DEPLOYMENT.md](docs/VPS_DEPLOYMENT.md) for an optional VPS recipe.
+See [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md) for deployment notes and [docs/VPS_DEPLOYMENT.md](docs/VPS_DEPLOYMENT.md) for the optional VPS helper and manual fallback.
 
 ## Codex
 
