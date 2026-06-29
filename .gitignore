@@ -10,3 +10,5 @@ auth.json
 *.tmp
 .DS_Store
 Thumbs.db
+.agents/orchestra/private/
+.agents/orchestra/**/*.local.md
