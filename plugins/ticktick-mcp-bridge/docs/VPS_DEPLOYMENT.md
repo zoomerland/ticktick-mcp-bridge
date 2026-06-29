@@ -163,6 +163,11 @@ For a LAN or disposable VM staging test with self-signed HTTPS:
   -AllowSelfSignedHealthCheck
 ```
 
+If you do not have local DNS for the staging VM, `-Domain` can be the VM or
+host-forwarded IP address, for example `192.168.0.100`. In Caddy staging mode
+the helper generates a short-lived self-signed certificate for IP-based HTTPS so
+the health check can verify the reverse proxy path with `curl -k`.
+
 Self-signed/internal TLS is useful for deploy smoke tests, but ChatGPT
 connectors generally require publicly trusted HTTPS.
 

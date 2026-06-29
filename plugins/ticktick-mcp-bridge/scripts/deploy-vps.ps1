@@ -87,7 +87,7 @@ function Quote-Bash {
 function Invoke-RemoteScript {
   param([string]$Script)
   $lfScript = $Script -replace "`r", ""
-  $lfScript | & ssh @script:SshArgs "bash -s"
+  $lfScript | & ssh @script:SshArgs "tr -d '\r' | bash -s"
   if ($LASTEXITCODE -ne 0) {
     throw "Remote SSH script failed with exit code $LASTEXITCODE."
   }
@@ -99,7 +99,8 @@ function Invoke-RemoteInput {
     [string]$RemoteCommand
   )
   $lfInput = $InputText -replace "`r", ""
-  $lfInput | & ssh @script:SshArgs $RemoteCommand
+  $quotedRemoteCommand = Quote-Bash $RemoteCommand
+  $lfInput | & ssh @script:SshArgs "tr -d '\r' | bash -c $quotedRemoteCommand"
   if ($LASTEXITCODE -ne 0) {
     throw "Remote SSH input command failed with exit code $LASTEXITCODE."
   }
@@ -217,6 +218,8 @@ choose_reverse_proxy() {
 
 SELECTED_REVERSE_PROXY="`$(choose_reverse_proxy)"
 echo "Selected reverse proxy mode: `$SELECTED_REVERSE_PROXY"
+export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
 
 if [ "`$SKIP_PACKAGE_INSTALL" != "True" ]; then
   if ! command -v apt-get >/dev/null 2>&1; then
@@ -250,7 +253,6 @@ if [ -d "`$REMOTE_ROOT/.git" ]; then
   git -C "`$REMOTE_ROOT" pull --ff-only origin "`$BRANCH"
 elif [ -d "`$REMOTE_ROOT" ] && [ -z "`$(ls -A "`$REMOTE_ROOT" 2>/dev/null)" ]; then
   sudo chown "`$SSH_USER_NAME:`$SSH_USER_NAME" "`$REMOTE_ROOT"
-  rmdir "`$REMOTE_ROOT"
   git clone --branch "`$BRANCH" "`$REPO_URL" "`$REMOTE_ROOT"
 elif [ -e "`$REMOTE_ROOT" ]; then
   echo "`$REMOTE_ROOT exists but is not a git checkout. Move it aside or choose another -RemoteRoot." >&2
@@ -258,7 +260,6 @@ elif [ -e "`$REMOTE_ROOT" ]; then
 else
   sudo mkdir -p "`$REMOTE_ROOT"
   sudo chown "`$SSH_USER_NAME:`$SSH_USER_NAME" "`$REMOTE_ROOT"
-  rmdir "`$REMOTE_ROOT"
   git clone --branch "`$BRANCH" "`$REPO_URL" "`$REMOTE_ROOT"
 fi
 
@@ -267,8 +268,13 @@ sudo mkdir -p "`$AUTH_DIR"
 sudo chown "`$SERVICE_USER:`$SERVICE_USER" "`$AUTH_DIR"
 sudo chmod 700 "`$AUTH_DIR"
 sudo chown -R "`$SSH_USER_NAME:`$SSH_USER_NAME" "`$REMOTE_ROOT"
+sudo chmod 755 "`$REMOTE_ROOT"
+if [ -d "`$REMOTE_ROOT/plugins" ]; then
+  sudo chmod 755 "`$REMOTE_ROOT/plugins"
+fi
 
 cd "`$PACKAGE_DIR"
+sudo chmod 755 "`$PACKAGE_DIR"
 npm run check
 npm test
 "@
@@ -277,7 +283,7 @@ Write-Host "==> Installing packages, cloning/updating repository, and running ch
 Invoke-RemoteScript $remoteBootstrap
 
 Write-Host "==> Uploading service environment to VPS"
-$envInstallCommand = "sudo install -d -m 0750 " + (Quote-Bash $packageDir) + " && sudo tee " + (Quote-Bash "$packageDir/.env") + " >/dev/null && sudo chmod 600 " + (Quote-Bash "$packageDir/.env")
+$envInstallCommand = "test -d " + (Quote-Bash $packageDir) + " && sudo tee " + (Quote-Bash "$packageDir/.env") + " >/dev/null && sudo chmod 600 " + (Quote-Bash "$packageDir/.env")
 Invoke-RemoteInput -InputText $envContent -RemoteCommand $envInstallCommand
 
 $remoteService = @"
@@ -347,8 +353,18 @@ UNIT
 sudo systemctl daemon-reload
 sudo systemctl enable --now "`$SERVICE_NAME"
 sudo systemctl restart "`$SERVICE_NAME"
-sleep 2
-systemctl is-active "`$SERVICE_NAME"
+for i in `$(seq 1 20); do
+  if systemctl is-active --quiet "`$SERVICE_NAME"; then
+    systemctl is-active "`$SERVICE_NAME"
+    break
+  fi
+  sleep 1
+done
+if ! systemctl is-active --quiet "`$SERVICE_NAME"; then
+  systemctl status "`$SERVICE_NAME" --no-pager --full >&2 || true
+  journalctl -u "`$SERVICE_NAME" -n 80 --no-pager >&2 || true
+  exit 6
+fi
 
 if [ "`$SELECTED_REVERSE_PROXY" = "caddy" ]; then
   sudo mkdir -p /etc/caddy/conf.d
@@ -361,12 +377,32 @@ if [ "`$SELECTED_REVERSE_PROXY" = "caddy" ]; then
   fi
   CADDY_SITE="/etc/caddy/conf.d/ticktick-mcp-bridge.caddy"
   TLS_LINE=""
+  CADDY_SITE_ADDRESS="`$DOMAIN"
   if [ "`$STAGING_SELF_SIGNED" = "True" ]; then
     TLS_LINE="  tls internal"
+    if printf '%s' "`$DOMAIN" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$'; then
+      sudo mkdir -p /etc/caddy/ticktick-mcp-bridge
+      if [ ! -f /etc/caddy/ticktick-mcp-bridge/selfsigned.key ] || [ ! -f /etc/caddy/ticktick-mcp-bridge/selfsigned.crt ]; then
+        sudo openssl req -x509 -nodes -newkey rsa:2048 -days 14 \
+          -keyout /etc/caddy/ticktick-mcp-bridge/selfsigned.key \
+          -out /etc/caddy/ticktick-mcp-bridge/selfsigned.crt \
+          -subj "/CN=`$DOMAIN" \
+          -addext "subjectAltName=IP:`$DOMAIN"
+      fi
+      if getent group caddy >/dev/null 2>&1; then
+        sudo chown root:caddy /etc/caddy/ticktick-mcp-bridge/selfsigned.key
+        sudo chmod 640 /etc/caddy/ticktick-mcp-bridge/selfsigned.key
+      else
+        sudo chmod 644 /etc/caddy/ticktick-mcp-bridge/selfsigned.key
+      fi
+      sudo chmod 644 /etc/caddy/ticktick-mcp-bridge/selfsigned.crt
+      CADDY_SITE_ADDRESS=":443"
+      TLS_LINE="  tls /etc/caddy/ticktick-mcp-bridge/selfsigned.crt /etc/caddy/ticktick-mcp-bridge/selfsigned.key"
+    fi
   fi
   cat <<CADDY | sudo tee "`$CADDY_SITE" >/dev/null
 # ticktick-mcp-bridge managed block
-`$DOMAIN {
+`$CADDY_SITE_ADDRESS {
 `$TLS_LINE
   reverse_proxy 127.0.0.1:8787
 }
