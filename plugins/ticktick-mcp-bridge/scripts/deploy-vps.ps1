@@ -37,7 +37,18 @@ param(
 
   [switch]$SkipPackageInstall,
 
+  [ValidateSet("auto", "caddy", "nginx", "manual", "none")]
+  [string]$ReverseProxy = "auto",
+
   [switch]$SkipCaddyInstall,
+
+  [switch]$StagingSelfSigned,
+
+  [string]$NginxSslCertificatePath = "",
+
+  [string]$NginxSslCertificateKeyPath = "",
+
+  [switch]$AllowSelfSignedHealthCheck,
 
   [switch]$SkipExternalHealthCheck
 )
@@ -123,6 +134,11 @@ if ($Domain -notmatch "^[A-Za-z0-9.-]+$") {
   throw "Domain must be a bare hostname, for example ticktick-mcp.example.com."
 }
 
+if ($SkipCaddyInstall -and $ReverseProxy -eq "auto") {
+  Write-Warning "-SkipCaddyInstall is deprecated. Using -ReverseProxy manual for this run."
+  $ReverseProxy = "manual"
+}
+
 $publicBaseUrl = "https://$Domain"
 $tickTickRedirectUri = "$publicBaseUrl/oauth/callback"
 $packageDir = "$RemoteRoot/plugins/ticktick-mcp-bridge"
@@ -173,7 +189,34 @@ AUTH_DIR=$(Quote-Bash $authDir)
 SERVICE_NAME=$(Quote-Bash $serviceName)
 DOMAIN=$(Quote-Bash $Domain)
 SKIP_PACKAGE_INSTALL=$(Quote-Bash ([string][bool]$SkipPackageInstall))
-SKIP_CADDY_INSTALL=$(Quote-Bash ([string][bool]$SkipCaddyInstall))
+REVERSE_PROXY=$(Quote-Bash $ReverseProxy)
+
+choose_reverse_proxy() {
+  case "`$REVERSE_PROXY" in
+    auto)
+      if systemctl is-active --quiet caddy 2>/dev/null || { command -v caddy >/dev/null 2>&1 && ! systemctl is-active --quiet nginx 2>/dev/null; }; then
+        echo caddy
+      elif systemctl is-active --quiet nginx 2>/dev/null || command -v nginx >/dev/null 2>&1; then
+        echo nginx
+      else
+        echo caddy
+      fi
+      ;;
+    none|manual)
+      echo manual
+      ;;
+    caddy|nginx)
+      echo "`$REVERSE_PROXY"
+      ;;
+    *)
+      echo "Unsupported reverse proxy mode: `$REVERSE_PROXY" >&2
+      exit 4
+      ;;
+  esac
+}
+
+SELECTED_REVERSE_PROXY="`$(choose_reverse_proxy)"
+echo "Selected reverse proxy mode: `$SELECTED_REVERSE_PROXY"
 
 if [ "`$SKIP_PACKAGE_INSTALL" != "True" ]; then
   if ! command -v apt-get >/dev/null 2>&1; then
@@ -181,17 +224,20 @@ if [ "`$SKIP_PACKAGE_INSTALL" != "True" ]; then
     exit 2
   fi
   sudo apt-get update
-  sudo apt-get install -y git curl ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https
+  sudo apt-get install -y git curl ca-certificates gnupg debian-keyring debian-archive-keyring apt-transport-https openssl
   if ! command -v node >/dev/null 2>&1 || [ "`$(node -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null || echo 0)" -lt 20 ]; then
     curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
     sudo apt-get install -y nodejs
   fi
-  if [ "`$SKIP_CADDY_INSTALL" != "True" ] && ! command -v caddy >/dev/null 2>&1; then
+  if [ "`$SELECTED_REVERSE_PROXY" = "caddy" ] && ! command -v caddy >/dev/null 2>&1; then
     sudo rm -f /usr/share/keyrings/caddy-stable-archive-keyring.gpg
     curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
     curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null
     sudo apt-get update
     sudo apt-get install -y caddy
+  fi
+  if [ "`$SELECTED_REVERSE_PROXY" = "nginx" ] && ! command -v nginx >/dev/null 2>&1; then
+    sudo apt-get install -y nginx
   fi
 fi
 
@@ -241,7 +287,37 @@ AUTH_DIR=$(Quote-Bash $authDir)
 SERVICE_USER=$(Quote-Bash $ServiceUser)
 SERVICE_NAME=$(Quote-Bash $serviceName)
 DOMAIN=$(Quote-Bash $Domain)
-SKIP_CADDY_INSTALL=$(Quote-Bash ([string][bool]$SkipCaddyInstall))
+REVERSE_PROXY=$(Quote-Bash $ReverseProxy)
+STAGING_SELF_SIGNED=$(Quote-Bash ([string][bool]$StagingSelfSigned))
+NGINX_SSL_CERTIFICATE=$(Quote-Bash $NginxSslCertificatePath)
+NGINX_SSL_CERTIFICATE_KEY=$(Quote-Bash $NginxSslCertificateKeyPath)
+
+choose_reverse_proxy() {
+  case "`$REVERSE_PROXY" in
+    auto)
+      if systemctl is-active --quiet caddy 2>/dev/null || { command -v caddy >/dev/null 2>&1 && ! systemctl is-active --quiet nginx 2>/dev/null; }; then
+        echo caddy
+      elif systemctl is-active --quiet nginx 2>/dev/null || command -v nginx >/dev/null 2>&1; then
+        echo nginx
+      else
+        echo caddy
+      fi
+      ;;
+    none|manual)
+      echo manual
+      ;;
+    caddy|nginx)
+      echo "`$REVERSE_PROXY"
+      ;;
+    *)
+      echo "Unsupported reverse proxy mode: `$REVERSE_PROXY" >&2
+      exit 4
+      ;;
+  esac
+}
+
+SELECTED_REVERSE_PROXY="`$(choose_reverse_proxy)"
+echo "Configuring reverse proxy mode: `$SELECTED_REVERSE_PROXY"
 
 cat <<UNIT | sudo tee /etc/systemd/system/`$SERVICE_NAME.service >/dev/null
 [Unit]
@@ -274,28 +350,95 @@ sudo systemctl restart "`$SERVICE_NAME"
 sleep 2
 systemctl is-active "`$SERVICE_NAME"
 
-if [ "`$SKIP_CADDY_INSTALL" != "True" ]; then
-  cat <<CADDY | sudo tee /etc/caddy/Caddyfile >/dev/null
+if [ "`$SELECTED_REVERSE_PROXY" = "caddy" ]; then
+  sudo mkdir -p /etc/caddy/conf.d
+  if [ ! -f /etc/caddy/Caddyfile ]; then
+    sudo touch /etc/caddy/Caddyfile
+  fi
+  if ! grep -q "import /etc/caddy/conf.d/\\*.caddy" /etc/caddy/Caddyfile; then
+    sudo cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.ticktick-mcp-bridge.bak.`$(date +%Y%m%d%H%M%S)
+    printf '\n# ticktick-mcp-bridge helper imports\nimport /etc/caddy/conf.d/*.caddy\n' | sudo tee -a /etc/caddy/Caddyfile >/dev/null
+  fi
+  CADDY_SITE="/etc/caddy/conf.d/ticktick-mcp-bridge.caddy"
+  TLS_LINE=""
+  if [ "`$STAGING_SELF_SIGNED" = "True" ]; then
+    TLS_LINE="  tls internal"
+  fi
+  cat <<CADDY | sudo tee "`$CADDY_SITE" >/dev/null
+# ticktick-mcp-bridge managed block
 `$DOMAIN {
+`$TLS_LINE
   reverse_proxy 127.0.0.1:8787
 }
 CADDY
+  sudo caddy validate --config /etc/caddy/Caddyfile
   sudo systemctl enable --now caddy
   sudo systemctl reload caddy
+elif [ "`$SELECTED_REVERSE_PROXY" = "nginx" ]; then
+  if [ "`$STAGING_SELF_SIGNED" = "True" ]; then
+    sudo mkdir -p /etc/nginx/ticktick-mcp-bridge
+    if [ ! -f /etc/nginx/ticktick-mcp-bridge/selfsigned.key ] || [ ! -f /etc/nginx/ticktick-mcp-bridge/selfsigned.crt ]; then
+      sudo openssl req -x509 -nodes -newkey rsa:2048 -days 14 \
+        -keyout /etc/nginx/ticktick-mcp-bridge/selfsigned.key \
+        -out /etc/nginx/ticktick-mcp-bridge/selfsigned.crt \
+        -subj "/CN=`$DOMAIN"
+    fi
+    NGINX_TLS_LINES="  ssl_certificate /etc/nginx/ticktick-mcp-bridge/selfsigned.crt;
+  ssl_certificate_key /etc/nginx/ticktick-mcp-bridge/selfsigned.key;"
+  elif [ -n "`$NGINX_SSL_CERTIFICATE" ] && [ -n "`$NGINX_SSL_CERTIFICATE_KEY" ]; then
+    NGINX_TLS_LINES="  ssl_certificate `$NGINX_SSL_CERTIFICATE;
+  ssl_certificate_key `$NGINX_SSL_CERTIFICATE_KEY;"
+  else
+    echo "Nginx reverse proxy mode needs -StagingSelfSigned for staging or -NginxSslCertificatePath plus -NginxSslCertificateKeyPath for trusted TLS." >&2
+    echo "Use -ReverseProxy manual if an existing Nginx/hosting panel must be configured by hand." >&2
+    exit 5
+  fi
+  cat <<NGINX | sudo tee /etc/nginx/sites-available/ticktick-mcp-bridge.conf >/dev/null
+# ticktick-mcp-bridge managed server
+server {
+  listen 443 ssl http2;
+  server_name `$DOMAIN;
+`$NGINX_TLS_LINES
+
+  location / {
+    proxy_http_version 1.1;
+    proxy_set_header Host \`$host;
+    proxy_set_header X-Forwarded-For \`$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_pass http://127.0.0.1:8787;
+  }
+}
+NGINX
+  sudo ln -sfn /etc/nginx/sites-available/ticktick-mcp-bridge.conf /etc/nginx/sites-enabled/ticktick-mcp-bridge.conf
+  sudo nginx -t
+  sudo systemctl enable --now nginx
+  sudo systemctl reload nginx
+else
+  echo "Reverse proxy config skipped. Configure HTTPS proxy to http://127.0.0.1:8787 manually."
 fi
 "@
 
-Write-Host "==> Installing systemd service and Caddy site"
+Write-Host "==> Installing systemd service and reverse proxy config"
 Invoke-RemoteScript $remoteService
 
 if (-not $SkipExternalHealthCheck) {
   Write-Host "==> Checking public HTTPS health endpoint"
-  try {
-    $health = Invoke-RestMethod -Uri "$publicBaseUrl/health" -TimeoutSec 30
-    Write-Host ("Health ok: {0}; tools: {1}" -f $health.ok, $health.tools.Count)
-  } catch {
-    Write-Warning "Public health check failed. DNS, firewall, port 80/443, or TLS issuance may still need time/fixing."
-    Write-Warning $_.Exception.Message
+  if ($AllowSelfSignedHealthCheck -or $StagingSelfSigned) {
+    $healthJson = & curl.exe -k -fsS --max-time 30 "$publicBaseUrl/health"
+    if ($LASTEXITCODE -ne 0) {
+      Write-Warning "Self-signed HTTPS health check failed. Check DNS/LAN routing, firewall, reverse proxy, and service status."
+    } else {
+      $health = $healthJson | ConvertFrom-Json
+      Write-Host ("Health ok: {0}; tools: {1}" -f $health.ok, $health.tools.Count)
+    }
+  } else {
+    try {
+      $health = Invoke-RestMethod -Uri "$publicBaseUrl/health" -TimeoutSec 30
+      Write-Host ("Health ok: {0}; tools: {1}" -f $health.ok, $health.tools.Count)
+    } catch {
+      Write-Warning "Public health check failed. DNS, firewall, port 80/443, or TLS issuance may still need time/fixing."
+      Write-Warning $_.Exception.Message
+    }
   }
 }
 
@@ -317,6 +460,10 @@ Write-Host "  Client ID:         $ChatGptOAuthClientId"
 Write-Host "  Client secret:     $chatGptSecretPlain"
 Write-Host "  Scopes:            ticktick:read ticktick:write"
 Write-Host "                     If ChatGPT only offers presets, choose default/standard/post."
+if ($StagingSelfSigned) {
+  Write-Host ""
+  Write-Host "Staging note: this run used self-signed/internal TLS. Browser/curl smoke can work, but ChatGPT connector generally requires publicly trusted HTTPS."
+}
 Write-Host ""
 Write-Host "Optional direct bearer smoke value:"
 Write-Host "  APP_SHARED_SECRET: $appSharedSecretPlain"

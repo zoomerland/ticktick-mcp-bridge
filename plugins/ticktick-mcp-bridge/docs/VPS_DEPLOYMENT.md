@@ -22,7 +22,7 @@ ChatGPT. Do not commit those values.
 Use four layers:
 
 1. SSH access controlled by the VPS owner.
-2. TLS certificate from Caddy.
+2. TLS certificate from Caddy, Nginx, or an existing reverse proxy.
 3. ChatGPT OAuth for `/mcp`.
 4. TickTick OAuth token storage on the VPS, under
    `/var/lib/ticktick-mcp-bridge/auth.json`.
@@ -34,10 +34,10 @@ BIND_HOST=127.0.0.1
 PORT=8787
 ```
 
-Caddy listens on public `80` and `443` and proxies to Node:
+The reverse proxy listens on public `80` and `443` and proxies to Node:
 
 ```text
-ChatGPT -> https://ticktick-mcp.example.com/mcp -> Caddy -> http://127.0.0.1:8787/mcp -> Node
+ChatGPT -> https://ticktick-mcp.example.com/mcp -> reverse proxy -> http://127.0.0.1:8787/mcp -> Node
 ```
 
 Do not expose the Node HTTP server directly to the internet.
@@ -79,13 +79,14 @@ login is enabled on the server. The script does not store the SSH password.
 
 The script prompts for the TickTick client secret as a secure input. It then:
 
-- installs Git, curl, certificates, Node.js 22, and Caddy when needed;
+- installs Git, curl, certificates, Node.js 22, and the chosen reverse proxy
+  when needed;
 - clones or updates this repository on the VPS;
 - generates `APP_SHARED_SECRET`, `CHATGPT_OAUTH_CLIENT_SECRET`, and
   `CHATGPT_OAUTH_TOKEN_SECRET` if you did not provide them;
 - writes the VPS `.env` file;
 - installs a locked-down systemd service;
-- configures Caddy for the domain;
+- configures a reverse proxy for the domain when possible;
 - runs `npm run check` and `npm test` on the VPS;
 - restarts the service;
 - prints the exact TickTick and ChatGPT settings to copy.
@@ -105,11 +106,65 @@ Optional parameters:
   -RepoUrl "https://github.com/zoomerland/ticktick-mcp-bridge.git" `
   -Branch "main" `
   -RemoteRoot "/opt/ticktick-mcp-bridge" `
-  -ServiceUser "ticktick-mcp"
+  -ServiceUser "ticktick-mcp" `
+  -ReverseProxy auto
 ```
 
-Use `-SkipPackageInstall` when the VPS already has Git, Node.js, and Caddy.
-Use `-SkipCaddyInstall` only if you manage TLS/reverse proxy yourself.
+Use `-SkipPackageInstall` when the VPS already has Git, Node.js, and the chosen
+reverse proxy.
+
+Reverse proxy modes:
+
+- `-ReverseProxy auto` detects an active or installed Caddy/Nginx. If neither
+  exists, it installs and configures Caddy.
+- `-ReverseProxy caddy` installs Caddy when needed and writes a separate
+  `/etc/caddy/conf.d/ticktick-mcp-bridge.caddy` site. The helper adds an import
+  line to `/etc/caddy/Caddyfile` instead of replacing existing sites.
+- `-ReverseProxy nginx` installs Nginx when needed and writes a separate
+  `/etc/nginx/sites-available/ticktick-mcp-bridge.conf` site. It runs
+  `nginx -t` before reload. Use `-StagingSelfSigned` for a disposable
+  self-signed certificate, or pass existing trusted certificate paths with
+  `-NginxSslCertificatePath` and `-NginxSslCertificateKeyPath`.
+- `-ReverseProxy manual` or `-ReverseProxy none` skips reverse proxy changes and
+  tells you to route HTTPS to `http://127.0.0.1:8787` yourself.
+
+If the helper cannot safely validate the reverse proxy config, it stops before
+reload. That is intentional: existing VPN panels, Nginx sites, Caddy sites, or
+firewall rules should not be broken silently.
+
+For an existing Nginx server with a managed certificate:
+
+```powershell
+.\scripts\deploy-vps.ps1 `
+  -SshHost "YOUR_SERVER_IP_OR_HOST" `
+  -SshUser "ubuntu" `
+  -Domain "ticktick-mcp.example.com" `
+  -TickTickClientId "YOUR_TICKTICK_CLIENT_ID" `
+  -ReverseProxy nginx `
+  -NginxSslCertificatePath "/etc/letsencrypt/live/ticktick-mcp.example.com/fullchain.pem" `
+  -NginxSslCertificateKeyPath "/etc/letsencrypt/live/ticktick-mcp.example.com/privkey.pem"
+```
+
+If the VPS already runs a VPN panel or a hand-managed Nginx/Caddy setup and you
+do not want the helper touching proxy config, use `-ReverseProxy manual`. The
+helper will still install/update the Node service and print the upstream target:
+`http://127.0.0.1:8787`.
+
+For a LAN or disposable VM staging test with self-signed HTTPS:
+
+```powershell
+.\scripts\deploy-vps.ps1 `
+  -SshHost "192.168.0.100" `
+  -SshUser "ubuntu" `
+  -Domain "ticktick-mcp-staging.local" `
+  -TickTickClientId "YOUR_TICKTICK_CLIENT_ID" `
+  -ReverseProxy caddy `
+  -StagingSelfSigned `
+  -AllowSelfSignedHealthCheck
+```
+
+Self-signed/internal TLS is useful for deploy smoke tests, but ChatGPT
+connectors generally require publicly trusted HTTPS.
 
 ## After The Helper Finishes
 
@@ -207,6 +262,6 @@ CHATGPT_OAUTH_TOKEN_SECRET=long-random-token-signing-secret
 TICKTICK_AUTH_FILE=/var/lib/ticktick-mcp-bridge/auth.json
 ```
 
-Then create a systemd service and Caddy reverse proxy equivalent to what the
-helper writes. Prefer the helper when possible; it keeps the commands aligned
-with the repository.
+Then create a systemd service and reverse proxy equivalent to what the helper
+writes. Prefer the helper when possible; it keeps the commands aligned with the
+repository.
