@@ -1,5 +1,6 @@
 import { TickTickError } from "./ticktick-api.mjs";
 import { toolMap, tools } from "./tools.mjs";
+import { chatgptToolSecuritySchemes } from "./chatgpt-oauth.mjs";
 
 export const SERVER_INFO = {
   name: "ticktick-mcp-bridge",
@@ -23,7 +24,14 @@ export function rpcError(id, error, code = -32000, data = undefined) {
 }
 
 export function listToolDescriptors() {
-  return tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema }));
+  const securitySchemes = chatgptToolSecuritySchemes();
+  return tools.map(({ name, description, inputSchema }) => ({
+    name,
+    description,
+    inputSchema,
+    securitySchemes,
+    _meta: { securitySchemes },
+  }));
 }
 
 export async function handleRpc(message) {

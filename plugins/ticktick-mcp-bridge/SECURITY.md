@@ -12,6 +12,8 @@ Never commit:
 - TickTick OAuth client secrets
 - TickTick access or refresh tokens
 - `APP_SHARED_SECRET`
+- `CHATGPT_OAUTH_CLIENT_SECRET`
+- `CHATGPT_OAUTH_TOKEN_SECRET`
 
 The repository only includes `.env.example` placeholders.
 
@@ -28,6 +30,16 @@ Clients must then send:
 ```text
 Authorization: Bearer <long-random-value>
 ```
+
+For ChatGPT, prefer the built-in OAuth authorization-code flow:
+
+```text
+CHATGPT_OAUTH_CLIENT_ID=ticktick-mcp-chatgpt
+CHATGPT_OAUTH_CLIENT_SECRET=<long-random-value>
+CHATGPT_OAUTH_TOKEN_SECRET=<long-random-value>
+```
+
+This OAuth layer protects ChatGPT -> MCP access. It is separate from TickTick OAuth, which protects MCP -> TickTick access.
 
 Do not expose the HTTP server publicly without authentication. The server includes write tools that can create, update, complete, and delete TickTick tasks.
 

@@ -78,6 +78,9 @@ TICKTICK_CLIENT_SECRET=your-client-secret
 TICKTICK_REDIRECT_URI=https://ticktick-mcp.example.com/oauth/callback
 
 APP_SHARED_SECRET=replace-with-a-long-random-secret
+CHATGPT_OAUTH_CLIENT_ID=ticktick-mcp-chatgpt
+CHATGPT_OAUTH_CLIENT_SECRET=replace-with-another-long-random-secret
+CHATGPT_OAUTH_TOKEN_SECRET=replace-with-a-token-signing-secret
 TICKTICK_AUTH_FILE=/var/lib/ticktick-mcp-bridge/auth.json
 ```
 
@@ -210,9 +213,17 @@ In ChatGPT Developer Mode, create a connector/app with:
 
 ```text
 Connector URL: https://ticktick-mcp.example.com/mcp
-Authentication: Bearer
-Bearer token: the APP_SHARED_SECRET value
+Authentication: OAuth
+Authorization URL: https://ticktick-mcp.example.com/oauth/authorize
+Token URL: https://ticktick-mcp.example.com/oauth/token
+Client ID: the CHATGPT_OAUTH_CLIENT_ID value
+Client secret: the CHATGPT_OAUTH_CLIENT_SECRET value
+Scopes: ticktick:read ticktick:write
 ```
+
+If ChatGPT only offers preset scope choices such as `default`, `standard`, or
+`post`, choose the preset ChatGPT allows. The MCP server grants its configured
+scopes and treats those presets as client compatibility aliases.
 
 Then scan tools and refresh metadata after each deploy that changes tools.
 

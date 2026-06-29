@@ -3,11 +3,28 @@ import { URL } from "node:url";
 import { buildAuthUrl, exchangeAuthorizationCode } from "./ticktick-api.mjs";
 import { redactAuth } from "./auth-store.mjs";
 import { handleRpc, listToolDescriptors, SERVER_INFO } from "./mcp-handler.mjs";
+import {
+  authorizationServerMetadata,
+  handleAuthorize,
+  handleToken,
+  oauthChallenge,
+  protectedResourceMetadata,
+  verifyOAuthAccessToken,
+} from "./chatgpt-oauth.mjs";
 
 const PORT = Number(process.env.PORT || 8787);
 const BIND_HOST = process.env.BIND_HOST || process.env.HOST || "127.0.0.1";
 const APP_SHARED_SECRET = process.env.APP_SHARED_SECRET || "";
 const ALLOW_UNAUTHENTICATED_PUBLIC_MCP = process.env.ALLOW_UNAUTHENTICATED_PUBLIC_MCP === "true";
+
+function logEvent(event, fields = {}) {
+  console.log(JSON.stringify({
+    ts: new Date().toISOString(),
+    level: "info",
+    event,
+    ...fields,
+  }));
+}
 
 function isLoopbackHost(hostname) {
   const value = String(hostname || "").toLowerCase();
@@ -82,12 +99,18 @@ async function readJsonRequest(req) {
 function isAuthorized(req) {
   if (!APP_SHARED_SECRET) return true;
   const auth = req.headers.authorization || "";
-  return auth === `Bearer ${APP_SHARED_SECRET}`;
+  const match = /^Bearer\s+(.+)$/i.exec(auth);
+  if (!match) return false;
+  return match[1] === APP_SHARED_SECRET || verifyOAuthAccessToken(match[1]);
 }
 
 async function handleMcp(req, res) {
   if (!isAuthorized(req)) {
-    sendJson(res, 401, { error: "Unauthorized" }, { "WWW-Authenticate": "Bearer" });
+    logEvent("mcp_unauthorized", {
+      method: req.method,
+      userAgent: String(req.headers["user-agent"] || "").slice(0, 160),
+    });
+    sendJson(res, 401, { error: "Unauthorized" }, { "WWW-Authenticate": oauthChallenge() });
     return;
   }
   if (req.method === "GET") {
@@ -155,6 +178,23 @@ function escapeHtml(value) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
+  const startedAt = Date.now();
+  let statusCode = 200;
+  const writeHead = res.writeHead;
+  res.writeHead = function patchedWriteHead(code, ...args) {
+    statusCode = code;
+    return writeHead.call(this, code, ...args);
+  };
+  res.on("finish", () => {
+    logEvent("http_request", {
+      method: req.method,
+      path: url.pathname,
+      status: statusCode,
+      durationMs: Date.now() - startedAt,
+      host: req.headers.host,
+      userAgent: String(req.headers["user-agent"] || "").slice(0, 160),
+    });
+  });
   if (req.method === "OPTIONS") {
     sendJson(res, 204, {});
     return;
@@ -168,6 +208,8 @@ const server = http.createServer(async (req, res) => {
       oauthStart: "/oauth/start",
       bindHost: BIND_HOST,
       authRequired: Boolean(APP_SHARED_SECRET),
+      oauthAuthorizationServer: "/.well-known/oauth-authorization-server",
+      oauthProtectedResource: "/.well-known/oauth-protected-resource",
       auth: redactAuth(),
       tools: listToolDescriptors().map((tool) => tool.name),
     });
@@ -177,8 +219,24 @@ const server = http.createServer(async (req, res) => {
     sendJson(res, 200, { tools: listToolDescriptors() });
     return;
   }
+  if (url.pathname === "/.well-known/oauth-protected-resource") {
+    sendJson(res, 200, protectedResourceMetadata());
+    return;
+  }
+  if (url.pathname === "/.well-known/oauth-authorization-server" || url.pathname === "/.well-known/openid-configuration") {
+    sendJson(res, 200, authorizationServerMetadata());
+    return;
+  }
   if (url.pathname === "/mcp" || url.pathname === "/sse") {
     await handleMcp(req, res);
+    return;
+  }
+  if (url.pathname === "/oauth/authorize") {
+    handleAuthorize(req, res, sendHtml);
+    return;
+  }
+  if (url.pathname === "/oauth/token") {
+    await handleToken(req, res, sendJson);
     return;
   }
   if (url.pathname === "/oauth/start") {
