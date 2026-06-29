@@ -8,6 +8,15 @@ const TOKEN_TTL_SECONDS = 60 * 60;
 const CODE_TTL_MS = 5 * 60 * 1000;
 const authorizationCodes = new Map();
 
+function logOAuthEvent(event, fields = {}) {
+  console.log(JSON.stringify({
+    ts: new Date().toISOString(),
+    level: "info",
+    event,
+    ...fields,
+  }));
+}
+
 function baseUrl() {
   return publicBaseUrl();
 }
@@ -166,23 +175,40 @@ export function handleAuthorize(req, res, sendHtml) {
     if (requestedResource !== resource()) throw new Error("Invalid resource audience.");
 
     const code = randomToken();
+    const requestedScope = url.searchParams.get("scope") || "";
+    const grantedScope = grantedScopes(requestedScope).join(" ");
     authorizationCodes.set(code, {
       clientId: url.searchParams.get("client_id"),
       redirectUri,
       codeChallenge: url.searchParams.get("code_challenge"),
       resource: requestedResource,
-      scope: grantedScopes(url.searchParams.get("scope")).join(" "),
+      scope: grantedScope,
       expiresAt: Date.now() + CODE_TTL_MS,
     });
 
     const target = new URL(redirectUri);
     target.searchParams.set("code", code);
     if (state) target.searchParams.set("state", state);
+    logOAuthEvent("oauth_authorize_success", {
+      clientId: url.searchParams.get("client_id"),
+      redirectOrigin: target.origin,
+      redirectPath: target.pathname,
+      requestedScope,
+      grantedScope,
+      requestedResource,
+    });
     res.writeHead(302, { Location: target.toString() });
     res.end();
   } catch (error) {
     const redirectUri = url.searchParams.get("redirect_uri");
     const state = url.searchParams.get("state") || "";
+    logOAuthEvent("oauth_authorize_error", {
+      clientId: url.searchParams.get("client_id") || "",
+      redirectAllowed: Boolean(redirectUri && allowedRedirectUri(redirectUri)),
+      requestedScope: url.searchParams.get("scope") || "",
+      requestedResource: url.searchParams.get("resource") || "",
+      error: error instanceof Error ? error.message : String(error),
+    });
     if (redirectUri && allowedRedirectUri(redirectUri)) {
       redirectWithError(res, redirectUri, state, "invalid_request", error.message);
       return;
@@ -242,6 +268,11 @@ export async function handleToken(req, res, sendJson) {
       jti: randomToken(16),
     });
 
+    logOAuthEvent("oauth_token_success", {
+      clientId: record.clientId,
+      resource: record.resource,
+      scope,
+    });
     sendJson(res, 200, {
       access_token: accessToken,
       token_type: "Bearer",
@@ -249,6 +280,9 @@ export async function handleToken(req, res, sendJson) {
       scope,
     }, { "Cache-Control": "no-store", Pragma: "no-cache" });
   } catch (error) {
+    logOAuthEvent("oauth_token_error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     sendJson(res, 400, {
       error: "invalid_grant",
       error_description: error instanceof Error ? error.message : String(error),

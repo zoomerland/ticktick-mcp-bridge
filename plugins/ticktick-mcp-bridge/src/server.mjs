@@ -17,6 +17,15 @@ const BIND_HOST = process.env.BIND_HOST || process.env.HOST || "127.0.0.1";
 const APP_SHARED_SECRET = process.env.APP_SHARED_SECRET || "";
 const ALLOW_UNAUTHENTICATED_PUBLIC_MCP = process.env.ALLOW_UNAUTHENTICATED_PUBLIC_MCP === "true";
 
+function logEvent(event, fields = {}) {
+  console.log(JSON.stringify({
+    ts: new Date().toISOString(),
+    level: "info",
+    event,
+    ...fields,
+  }));
+}
+
 function isLoopbackHost(hostname) {
   const value = String(hostname || "").toLowerCase();
   return value === "localhost" || value === "127.0.0.1" || value === "::1" || value === "[::1]";
@@ -97,6 +106,10 @@ function isAuthorized(req) {
 
 async function handleMcp(req, res) {
   if (!isAuthorized(req)) {
+    logEvent("mcp_unauthorized", {
+      method: req.method,
+      userAgent: String(req.headers["user-agent"] || "").slice(0, 160),
+    });
     sendJson(res, 401, { error: "Unauthorized" }, { "WWW-Authenticate": oauthChallenge() });
     return;
   }
@@ -165,6 +178,23 @@ function escapeHtml(value) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
+  const startedAt = Date.now();
+  let statusCode = 200;
+  const writeHead = res.writeHead;
+  res.writeHead = function patchedWriteHead(code, ...args) {
+    statusCode = code;
+    return writeHead.call(this, code, ...args);
+  };
+  res.on("finish", () => {
+    logEvent("http_request", {
+      method: req.method,
+      path: url.pathname,
+      status: statusCode,
+      durationMs: Date.now() - startedAt,
+      host: req.headers.host,
+      userAgent: String(req.headers["user-agent"] || "").slice(0, 160),
+    });
+  });
   if (req.method === "OPTIONS") {
     sendJson(res, 204, {});
     return;
