@@ -162,7 +162,8 @@ function validateAuthorizeParams(params) {
   if (responseType !== "code") throw new Error("response_type must be code.");
   if (requestedClientId !== clientId()) throw new Error("Unknown client_id.");
   if (!redirectUri || !allowedRedirectUri(redirectUri)) throw new Error("redirect_uri is not allowed.");
-  if (!codeChallenge || codeChallengeMethod !== "S256") throw new Error("PKCE S256 is required.");
+  if (codeChallenge && codeChallengeMethod !== "S256") throw new Error("PKCE code_challenge_method must be S256.");
+  if (!codeChallenge && !clientSecret()) throw new Error("PKCE S256 is required when no client secret is configured.");
 }
 
 export function handleAuthorize(req, res, sendHtml) {
@@ -181,6 +182,7 @@ export function handleAuthorize(req, res, sendHtml) {
       clientId: url.searchParams.get("client_id"),
       redirectUri,
       codeChallenge: url.searchParams.get("code_challenge"),
+      codeChallengeMethod: url.searchParams.get("code_challenge_method") || "",
       resource: requestedResource,
       scope: grantedScope,
       expiresAt: Date.now() + CODE_TTL_MS,
@@ -196,6 +198,7 @@ export function handleAuthorize(req, res, sendHtml) {
       requestedScope,
       grantedScope,
       requestedResource,
+      pkce: Boolean(url.searchParams.get("code_challenge")),
     });
     res.writeHead(302, { Location: target.toString() });
     res.end();
@@ -251,7 +254,12 @@ export async function handleToken(req, res, sendJson) {
     if (params.get("redirect_uri") !== record.redirectUri) throw new Error("redirect_uri mismatch.");
     if (params.get("resource") && params.get("resource") !== record.resource) throw new Error("resource mismatch.");
     const verifier = params.get("code_verifier") || "";
-    if (!verifier || pkceChallenge(verifier) !== record.codeChallenge) throw new Error("PKCE verification failed.");
+    if (record.codeChallenge && (!verifier || pkceChallenge(verifier) !== record.codeChallenge)) {
+      throw new Error("PKCE verification failed.");
+    }
+    if (!record.codeChallenge && !clientSecret()) {
+      throw new Error("PKCE verification is required when no client secret is configured.");
+    }
 
     const now = Math.floor(Date.now() / 1000);
     const scope = record.scope || scopes().join(" ");
