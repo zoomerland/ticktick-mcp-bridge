@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { officialTaskPayload } from "../src/tools.mjs";
 import {
   apiProjectId,
   INBOX_PROJECT,
@@ -26,6 +27,16 @@ assert.equal(isInboxProjectId("inbox131473281"), true);
 assert.equal(isInboxProjectId("project-a"), false);
 assert.equal(apiProjectId("inbox131473281"), "inbox");
 assert.equal(apiProjectId("project-a"), "project-a");
+assert.deepEqual(officialTaskPayload({ id: "task-1", projectId: "inbox131473281", title: "Inbox task" }), {
+  id: "task-1",
+  projectId: "inbox",
+  title: "Inbox task",
+});
+assert.deepEqual(officialTaskPayload({ id: "task-1", projectId: "project-a", title: "Project task" }), {
+  id: "task-1",
+  projectId: "project-a",
+  title: "Project task",
+});
 
 const names = projectNameById(withInbox);
 assert.equal(names.inbox, "Inbox");

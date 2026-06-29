@@ -9,12 +9,13 @@
     "start:chatgpt": "node src/server.mjs",
     "start:stdio": "node src/transports/stdio.mjs",
     "start:codex": "node src/transports/stdio.mjs",
-    "check": "node --check src/server.mjs && node --check src/mcp-handler.mjs && node --check src/transports/stdio.mjs && node --check src/tools.mjs && node --check src/ticktick-api.mjs && node --check src/ticktick-data.mjs && node --check src/task-operations.mjs && node --check src/habit-operations.mjs && node --check src/focus-operations.mjs && node --check src/diagnostics.mjs && node --check src/auth-store.mjs && node --check src/chatgpt-oauth.mjs && node --check scripts/test-inbox.mjs && node --check scripts/test-task-operations.mjs && node --check scripts/test-official-openapi-tools.mjs",
-    "test": "node scripts/test-inbox.mjs && node scripts/test-task-operations.mjs && node scripts/test-official-openapi-tools.mjs",
+    "check": "node --check src/server.mjs && node --check src/mcp-handler.mjs && node --check src/transports/stdio.mjs && node --check src/tools.mjs && node --check src/ticktick-api.mjs && node --check src/ticktick-data.mjs && node --check src/task-operations.mjs && node --check src/habit-operations.mjs && node --check src/focus-operations.mjs && node --check src/diagnostics.mjs && node --check src/auth-store.mjs && node --check src/chatgpt-oauth.mjs && node --check scripts/test-inbox.mjs && node --check scripts/test-task-operations.mjs && node --check scripts/test-official-openapi-tools.mjs && node --check scripts/test-mcp-validation.mjs && node --check scripts/qa-ticktick-mcp.mjs",
+    "test": "node scripts/test-inbox.mjs && node scripts/test-task-operations.mjs && node scripts/test-official-openapi-tools.mjs && node scripts/test-mcp-validation.mjs",
     "test:inbox": "node scripts/test-inbox.mjs",
     "test:task-operations": "node scripts/test-task-operations.mjs",
     "test:official-openapi": "node scripts/test-official-openapi-tools.mjs",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "qa:ticktick-mcp": "node scripts/qa-ticktick-mcp.mjs"
   },
   "engines": {
     "node": ">=20"
