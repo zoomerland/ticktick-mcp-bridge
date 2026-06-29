@@ -109,14 +109,16 @@ function typeOf(value) {
 }
 
 function matchesType(value, expected) {
+  if (Array.isArray(expected)) return expected.some((candidate) => matchesType(value, candidate));
   if (expected === "array") return Array.isArray(value);
   if (expected === "object") return value !== null && !Array.isArray(value) && typeof value === "object";
   if (expected === "number") return typeof value === "number" && Number.isFinite(value);
   if (expected === "integer") return Number.isInteger(value);
+  if (expected === "null") return value === null;
   return typeof value === expected;
 }
 
-function validateSchema(schema = {}, value, path = "arguments") {
+export function validateSchema(schema = {}, value, path = "arguments") {
   const errors = [];
   if (schema.oneOf) {
     const matches = schema.oneOf.filter((candidate) => validateSchema(candidate, value, path).length === 0);
@@ -127,7 +129,8 @@ function validateSchema(schema = {}, value, path = "arguments") {
     errors.push(`${path} must be one of: ${schema.enum.join(", ")}`);
   }
   if (schema.type && !matchesType(value, schema.type)) {
-    errors.push(`${path} must be ${schema.type}, got ${typeOf(value)}`);
+    const expected = Array.isArray(schema.type) ? schema.type.join(" or ") : schema.type;
+    errors.push(`${path} must be ${expected}, got ${typeOf(value)}`);
     return errors;
   }
   if (schema.type === "object") {

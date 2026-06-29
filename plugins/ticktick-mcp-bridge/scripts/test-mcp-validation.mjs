@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { handleRpc } from "../src/mcp-handler.mjs";
+import { handleRpc, validateSchema } from "../src/mcp-handler.mjs";
+import { toolMap } from "../src/tools.mjs";
 
 async function callTool(name, args) {
   return handleRpc({
@@ -42,5 +43,18 @@ await assertToolError("ticktick_update_task", {
 }, /startDate must be earlier than or equal to dueDate/);
 
 await assertToolError("ticktick_create_task", { title: "No project" }, /projectId is required/);
+
+const updateTaskSchema = toolMap.ticktick_update_task.inputSchema;
+assert.deepEqual(validateSchema(updateTaskSchema, {
+  taskId: "task-1",
+  projectId: "project-1",
+  startDate: null,
+  dueDate: null,
+}), []);
+assert.match(validateSchema(updateTaskSchema, {
+  taskId: "task-1",
+  projectId: "project-1",
+  dueDate: 123,
+}).join("\n"), /dueDate must be string or null/);
 
 console.log("MCP validation regression tests passed.");

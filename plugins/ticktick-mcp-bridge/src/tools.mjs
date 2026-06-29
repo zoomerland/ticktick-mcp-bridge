@@ -49,12 +49,12 @@ const checklistItemSchema = {
   properties: {
     id: { type: "string" },
     title: { type: "string" },
-    startDate: { type: "string" },
+    startDate: { type: ["string", "null"], description: "Date-time string, or null to clear the checklist item start date." },
     isAllDay: { type: "boolean" },
     sortOrder: { type: "number" },
     timeZone: { type: "string" },
     status: { type: "number", enum: [0, 1], description: "Checklist item status: 0 normal, 1 completed." },
-    completedTime: { type: "string" },
+    completedTime: { type: ["string", "null"], description: "Date-time string, or null to clear the checklist item completed time." },
   },
 };
 
@@ -64,8 +64,8 @@ const taskFields = {
   content: { type: "string" },
   desc: { type: "string", description: "Checklist description." },
   projectId: { type: "string", description: "Project/list ID. Use inbox for TickTick Inbox when supported by the endpoint." },
-  dueDate: { type: "string", description: "Example: 2026-06-01T09:00:00+0000" },
-  startDate: { type: "string" },
+  dueDate: { type: ["string", "null"], description: "Example: 2026-06-01T09:00:00+0000. Use null to clear the due date." },
+  startDate: { type: ["string", "null"], description: "Date-time string, or null to clear the start date." },
   timeZone: { type: "string" },
   isAllDay: { type: "boolean" },
   priority: { type: "number", enum: [0, 1, 3, 5], description: "TickTick priority: 0 none, 1 low, 3 medium, 5 high." },
@@ -107,10 +107,14 @@ function validateDateFields(args = {}) {
   return errors;
 }
 
+function pruneTaskPayload(value) {
+  return Object.fromEntries(Object.entries(value || {}).filter(([, item]) => item !== undefined && item !== ""));
+}
+
 export function officialTaskPayload(args = {}) {
   const payload = { ...args };
   if (payload.projectId) payload.projectId = apiProjectId(payload.projectId);
-  return prune(payload);
+  return pruneTaskPayload(payload);
 }
 
 export const tools = [

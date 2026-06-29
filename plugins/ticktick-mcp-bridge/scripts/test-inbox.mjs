@@ -37,6 +37,19 @@ assert.deepEqual(officialTaskPayload({ id: "task-1", projectId: "project-a", tit
   projectId: "project-a",
   title: "Project task",
 });
+assert.deepEqual(officialTaskPayload({
+  id: "task-1",
+  projectId: "project-a",
+  startDate: null,
+  dueDate: null,
+  content: "",
+  title: undefined,
+}), {
+  id: "task-1",
+  projectId: "project-a",
+  startDate: null,
+  dueDate: null,
+});
 
 const names = projectNameById(withInbox);
 assert.equal(names.inbox, "Inbox");

@@ -132,6 +132,15 @@ async function main() {
       timeZone: "Europe/Moscow",
       isAllDay: false,
     });
+    const clearDates = await call("update_clear_dates", "ticktick_update_task", {
+      projectId: sandboxProjectId,
+      taskId: textTaskId,
+      startDate: null,
+      dueDate: null,
+    });
+    if (clearDates.value?.startDate || clearDates.value?.dueDate) {
+      throw new Error("update_clear_dates did not clear startDate/dueDate");
+    }
     await call("update_without_project_validation", "ticktick_update_task", {
       taskId: textTaskId,
       content: "Missing projectId should be rejected before TickTick API",
