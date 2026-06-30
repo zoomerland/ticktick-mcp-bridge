@@ -4,7 +4,7 @@ import { chatgptToolSecuritySchemes } from "./chatgpt-oauth.mjs";
 
 export const SERVER_INFO = {
   name: "ticktick-mcp-bridge",
-  version: "0.3.1+codex.20260618-163502",
+  version: "0.3.2+codex.20260630-040644",
 };
 
 export function rpcResult(id, result) {
