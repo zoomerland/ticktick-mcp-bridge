@@ -63,6 +63,10 @@ Show my completed tasks from this week.
 ```
 
 ```text
+Remove the date from the task about the water meter so it no longer appears in today or overdue.
+```
+
+```text
 List my TickTick habits and show which ones have check-ins this week.
 ```
 
@@ -79,6 +83,8 @@ For natural-language task edits, the plugin includes safer candidate tools:
 1. Search first with `ticktick_search_tasks` or `ticktick_find_task_candidates`.
 2. If multiple tasks match, choose the exact task instead of guessing.
 3. Complete by exact `projectId` and `taskId`, or use `ticktick_complete_task_safe`.
+
+For task updates, omitted fields are left unchanged. To remove a task date, `ticktick_update_task` should send `startDate: null` and `dueDate: null`; empty strings are not a reliable way to clear dates. If a task is being marked as waiting and no review date was specified, clearing the date is usually safer than moving it to an arbitrary future date.
 
 Deleting tasks, projects, focus records, or changing habits is consequential. Review the candidate or exact ID before approving those operations.
 
@@ -121,6 +127,8 @@ TickTick has calendar views in the app. The bridge does not need a separate cale
 - `reminders`
 
 This is enough for agenda-style planning, today/overdue reviews, and schedule analysis. External calendar subscriptions are not covered by the official Open API.
+
+To remove a task from date-based views, clear both `startDate` and `dueDate`. To move a task to a concrete day or time, set the relevant date fields explicitly and keep `timeZone`/`isAllDay` consistent with the user's request.
 
 ## Habit Notes
 

@@ -282,7 +282,7 @@ export const tools = [
   },
   {
     name: "ticktick_filter_tasks_official",
-    description: "Use TickTick's official /task/filter endpoint for project, date, priority, tag, and status filtering.",
+    description: "Use TickTick's official /task/filter endpoint for exact project, start-date range, priority, tag, and status filtering. For natural-language search or Inbox-inclusive candidate matching, use ticktick_search_tasks or ticktick_find_task_candidates.",
     inputSchema: {
       type: "object",
       properties: {
@@ -417,7 +417,7 @@ export const tools = [
   },
   {
     name: "ticktick_update_task",
-    description: "Update a TickTick task by task ID. The official TickTick Open API requires projectId and the request body must include the task id.",
+    description: "Update a TickTick task by task ID. Omit fields you do not want to change. To remove scheduling/due dates, set startDate and dueDate to null; do not use empty strings. Requires projectId and sends the official POST /task/{taskId} update.",
     inputSchema: {
       type: "object",
       required: ["taskId", "projectId"],
@@ -619,7 +619,7 @@ export const tools = [
   },
   {
     name: "ticktick_raw_request",
-    description: "Advanced escape hatch for TickTick Open API paths not covered by dedicated tools.",
+    description: "Advanced escape hatch for official TickTick Open API paths not covered by dedicated tools. Do not use for normal task create/update/complete/move/search flows when a dedicated tool exists.",
     inputSchema: {
       type: "object",
       required: ["method", "endpoint"],

@@ -72,6 +72,8 @@ For natural-language task changes, prefer the safe workflow:
 2. If the result is ambiguous, show the candidates instead of acting.
 3. Use `ticktick_complete_task_safe` with exact IDs, or with a query only when it resolves to one safe candidate.
 
+For task updates, `ticktick_update_task` leaves omitted fields unchanged. To clear scheduling, send `startDate: null` and `dueDate: null`; do not use empty strings. `ticktick_raw_request` should remain an escape hatch for official Open API endpoints that do not yet have dedicated tools, not the normal path for task edits.
+
 `ticktick_diagnostics` is non-destructive and checks auth, project access, Inbox visibility, and task counts. It is the fastest first check when the bridge looks connected but task results seem incomplete.
 
 Habit and Focus/Pomodoro tools are based on the official TickTick Open API `Habit` and `Focus` sections. Countdown, calendar subscriptions, and Eisenhower Matrix are not exposed by the official Open API at this time, so this bridge does not implement them as first-class TickTick tools.

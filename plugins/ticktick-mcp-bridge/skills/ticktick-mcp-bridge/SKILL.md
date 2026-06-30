@@ -31,6 +31,7 @@ Do not store the user's TickTick, Google, or email password.
 - Use `ticktick_inbox` when the user specifically asks about Inbox or uncategorized tasks.
 - Use `ticktick_analyze_workload` before making priority or schedule recommendations.
 - Use `ticktick_filter_tasks_official` when the user asks for precise API-level filtering by project IDs, date range, priority, tags, or status.
+- Use `ticktick_search_tasks` or `ticktick_find_task_candidates` for natural-language search, especially when Inbox tasks should be included or an edit target is identified by title.
 - Use `ticktick_list_completed_tasks` when the user asks what was completed in a time range.
 - Use `ticktick_list_projects` before creating a task in a named project if the user did not provide a project ID.
 - Use `ticktick_create_task` for new tasks.
@@ -39,10 +40,19 @@ Do not store the user's TickTick, Google, or email password.
 - Use `ticktick_complete_task_safe` for natural-language completion requests. It will act only on exact IDs or one safe candidate unless explicitly configured otherwise.
 - Use `ticktick_move_task` to move a task to another project/list after both source and destination project IDs are known. It uses the official `/task/move` endpoint and needs `fromProjectId`, `toProjectId`, and `taskId`.
 - Use `ticktick_get_task` by ID for final verification after changing a task.
+- Use `ticktick_raw_request` only for official TickTick Open API endpoints that do not have a dedicated tool. Do not use it for normal task create, update, complete, move, search, or date-clearing flows.
 - Use `ticktick_list_habits`, `ticktick_get_habit`, `ticktick_list_habit_checkins`, and `ticktick_checkin_habit` for TickTick Habit Tracker work.
 - Use `ticktick_list_focuses` and `ticktick_analyze_focus` for Pomodoro/Focus history. Focus type `0` is Pomodoro and type `1` is Timing.
 - Remember that TickTick Inbox is included as a pseudo-project because TickTick's `/project` API does not list it. Search/list calls should include Inbox tasks as well as normal projects.
 - Do not manually enumerate only `ticktick_list_projects` results and assume that covers every task. Use `ticktick_list_tasks` for task search, or explicitly include Inbox through `/project/inbox/data`.
+
+## Task Update Semantics
+
+- To clear scheduling from a task, call `ticktick_update_task` with both `startDate: null` and `dueDate: null`.
+- Omit fields that should not change. Do not send empty strings to clear dates; TickTick may ignore them.
+- If the user says "remove the date", "without a date", "not today", "do not keep it in today/overdue", or marks a task as waiting without a concrete review date, clear `startDate` and `dueDate` unless the user gave a specific new date.
+- If the user asks to move a task to a concrete date, set the date explicitly instead of clearing it.
+- After date edits or bulk edits, verify with `ticktick_get_task`, `ticktick_today`, or the relevant search/list call.
 
 ## Safety Pattern For Natural-Language Edits
 
