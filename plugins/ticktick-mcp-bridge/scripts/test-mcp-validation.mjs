@@ -19,6 +19,16 @@ function toolJson(response) {
   return JSON.parse(toolText(response));
 }
 
+async function listTools() {
+  const response = await handleRpc({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "tools/list",
+    params: {},
+  });
+  return Object.fromEntries(response.result.tools.map((tool) => [tool.name, tool]));
+}
+
 async function assertToolError(name, args, expectedText) {
   const response = await callTool(name, args);
   assert.equal(response.result.isError, true);
@@ -43,6 +53,40 @@ await assertToolError("ticktick_update_task", {
 }, /startDate must be earlier than or equal to dueDate/);
 
 await assertToolError("ticktick_create_task", { title: "No project" }, /projectId is required/);
+
+const descriptors = await listTools();
+const initialize = await handleRpc({
+  jsonrpc: "2.0",
+  id: 1,
+  method: "initialize",
+  params: { protocolVersion: "2025-03-26" },
+});
+assert.match(initialize.result.instructions, /clear task scheduling/);
+assert.match(initialize.result.instructions, /ticktick_raw_request only/);
+
+assert.equal(descriptors.ticktick_search_tasks.annotations.readOnlyHint, true);
+assert.equal(descriptors.ticktick_search_tasks.annotations.openWorldHint, true);
+assert.equal(descriptors.ticktick_update_task.annotations.readOnlyHint, false);
+assert.equal(descriptors.ticktick_update_task.annotations.destructiveHint, false);
+assert.equal(descriptors.ticktick_update_task.annotations.openWorldHint, true);
+assert.equal(descriptors.ticktick_delete_task.annotations.destructiveHint, true);
+assert.equal(descriptors.ticktick_raw_request.annotations.destructiveHint, true);
+assert.equal(descriptors.ticktick_auth_status.annotations.openWorldHint, false);
+assert.deepEqual(descriptors.ticktick_update_task.outputSchema, {
+  type: "object",
+  properties: {
+    result: {
+      description: "Tool-specific JSON result. The text content contains the same data formatted for compatibility.",
+    },
+  },
+  required: ["result"],
+  additionalProperties: false,
+});
+
+const authStatus = await callTool("ticktick_auth_status", {});
+assert.ok(authStatus.result.structuredContent);
+assert.deepEqual(Object.keys(authStatus.result.structuredContent), ["result"]);
+assert.deepEqual(toolJson(authStatus), JSON.parse(JSON.stringify(authStatus.result.structuredContent.result)));
 
 const updateTaskSchema = toolMap.ticktick_update_task.inputSchema;
 assert.deepEqual(validateSchema(updateTaskSchema, {

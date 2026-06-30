@@ -4,8 +4,76 @@ import { chatgptToolSecuritySchemes } from "./chatgpt-oauth.mjs";
 
 export const SERVER_INFO = {
   name: "ticktick-mcp-bridge",
-  version: "0.3.2+codex.20260630-040644",
+  version: "0.3.3+codex.20260630-041812",
 };
+
+export const SERVER_INSTRUCTIONS = [
+  "Use search or candidate tools before mutating a task identified by natural language.",
+  "To clear task scheduling, call ticktick_update_task with startDate: null and dueDate: null; do not send empty strings.",
+  "Use ticktick_raw_request only for official TickTick Open API endpoints that lack a dedicated tool.",
+  "Verify important changes with ticktick_get_task, ticktick_today, or another relevant read-only tool.",
+].join(" ");
+
+export const TOOL_OUTPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    result: {
+      description: "Tool-specific JSON result. The text content contains the same data formatted for compatibility.",
+    },
+  },
+  required: ["result"],
+  additionalProperties: false,
+};
+
+const localOnlyTools = new Set([
+  "ticktick_auth_status",
+  "ticktick_set_oauth_app",
+  "ticktick_set_bearer_token",
+  "ticktick_clear_auth",
+]);
+
+const readOnlyTools = new Set([
+  "ticktick_auth_status",
+  "ticktick_get_auth_url",
+  "ticktick_list_projects",
+  "ticktick_get_project",
+  "ticktick_get_project_data",
+  "ticktick_get_task",
+  "ticktick_list_tasks",
+  "ticktick_filter_tasks_official",
+  "ticktick_list_completed_tasks",
+  "ticktick_search_tasks",
+  "ticktick_find_task_candidates",
+  "ticktick_today",
+  "ticktick_analyze_workload",
+  "ticktick_overdue",
+  "ticktick_inbox",
+  "ticktick_diagnostics",
+  "ticktick_list_focuses",
+  "ticktick_get_focus",
+  "ticktick_analyze_focus",
+  "ticktick_list_habits",
+  "ticktick_get_habit",
+  "ticktick_list_habit_checkins",
+]);
+
+const destructiveTools = new Set([
+  "ticktick_clear_auth",
+  "ticktick_delete_project",
+  "ticktick_delete_task",
+  "ticktick_delete_focus",
+  "ticktick_raw_request",
+]);
+
+function toolAnnotations(name) {
+  const readOnly = readOnlyTools.has(name);
+  return {
+    readOnlyHint: readOnly,
+    destructiveHint: destructiveTools.has(name),
+    openWorldHint: !localOnlyTools.has(name),
+    ...(readOnly ? { idempotentHint: true } : {}),
+  };
+}
 
 export function rpcResult(id, result) {
   return { jsonrpc: "2.0", id, result };
@@ -97,6 +165,8 @@ export function listToolDescriptors() {
     name,
     description,
     inputSchema,
+    outputSchema: TOOL_OUTPUT_SCHEMA,
+    annotations: toolAnnotations(name),
     securitySchemes,
     _meta: { securitySchemes },
   }));
@@ -162,6 +232,7 @@ export async function handleRpc(message) {
       protocolVersion: params?.protocolVersion || "2025-03-26",
       capabilities: { tools: {} },
       serverInfo: SERVER_INFO,
+      instructions: SERVER_INSTRUCTIONS,
     });
   }
 
@@ -187,6 +258,7 @@ export async function handleRpc(message) {
         });
         return rpcResult(id, {
           isError: true,
+          structuredContent: { result: payload },
           content: [{
             type: "text",
             text: JSON.stringify(payload, null, 2),
@@ -203,6 +275,7 @@ export async function handleRpc(message) {
           });
           return rpcResult(id, {
             isError: true,
+            structuredContent: { result: payload },
             content: [{
               type: "text",
               text: JSON.stringify(payload, null, 2),
@@ -212,6 +285,7 @@ export async function handleRpc(message) {
       }
       const result = await tool.handler(args);
       return rpcResult(id, {
+        structuredContent: { result: result ?? null },
         content: [{ type: "text", text: JSON.stringify(result ?? {}, null, 2) }],
       });
     } catch (error) {
@@ -222,6 +296,7 @@ export async function handleRpc(message) {
       });
       return rpcResult(id, {
         isError: true,
+        structuredContent: { result: payload },
         content: [{
           type: "text",
           text: JSON.stringify(payload, null, 2),

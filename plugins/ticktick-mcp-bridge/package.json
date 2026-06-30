@@ -1,6 +1,6 @@
 {
   "name": "ticktick-mcp-bridge",
-  "version": "0.3.2+codex.20260630-040644",
+  "version": "0.3.3+codex.20260630-041812",
   "type": "module",
   "description": "Self-hosted TickTick MCP server for ChatGPT, Codex, and other MCP clients.",
   "scripts": {
