@@ -63,23 +63,24 @@ Suggested branch names:
 
 ## Current Workstream Map
 
-As of 2026-06-29, the local work is split across two active worktrees:
+As of 2026-06-30, the local work is split across two active worktrees:
 
 - `C:\Users\Zoomerland\Documents\TiickTick`
   - branch: `codex/telegram-bot`
   - owns: Telegram secretary and local STT work under `integrations/`
   - status: local dirty worktree, not pushed as a Telegram branch
 - `C:\Users\Zoomerland\Documents\TiickTick-chatgpt-oauth`
-  - branch: `codex/chatgpt-oauth-provider`
-  - owns: ChatGPT/self-hosted HTTP MCP OAuth provider and VPS-facing bridge
-    fixes under `plugins/ticktick-mcp-bridge/`
-  - status: pushed branch, draft PR exists, deployed to the private VPS for
-    live validation
+  - branch: `main`
+  - owns: current accepted TickTick MCP Bridge baseline, including ChatGPT
+    OAuth/self-hosted HTTP MCP behavior, task-date clearing, diagnostics, and
+    the optional VPS deployment helper under `plugins/ticktick-mcp-bridge/`
+  - status: pushed to `origin/main`; production private VPS has been deployed
+    from this baseline
 
-Earlier VPS hardening lives on `codex/vps-security-defaults`. The
-`codex/chatgpt-oauth-provider` workstream builds on that deployment direction.
-Do not assume those changes are present in `main` or in `codex/telegram-bot`
-until the conductor accepts and integrates the relevant PRs.
+Historical bridge work branches such as `codex/vps-deploy-helper`,
+`codex/ticktick-clear-task-dates`, and earlier OAuth/security branches have
+been integrated into `main`. Treat new MCP/runtime fixes as fresh scoped
+branches from `main`, not as continuations of the old merged workstreams.
 
 ## Public And Private Data
 
@@ -132,9 +133,10 @@ OAuth state, and `ticktick_diagnostics` before declaring the deployment healthy.
 The current stable baseline is TickTick MCP Bridge as the shared backend for
 Codex local stdio usage and ChatGPT/self-hosted HTTP MCP usage.
 
-The remote ChatGPT OAuth/MCP deployment work is currently separate from the
-Telegram branch. It is validated on the private VPS, but it remains a bridge
-workstream until reviewed and integrated.
+The remote ChatGPT OAuth/MCP deployment work is integrated into `main`.
+Production on the private VPS is validated from that baseline. The remaining
+deployment-helper validation gap is a full external-domain/VPN/load-balancer
+route into the LAN staging VM; see the latest VPS helper validation handoff.
 
 The current expansion branch contains the first Telegram secretary
 implementation under `integrations/telegram-bot/` plus a local STT service
