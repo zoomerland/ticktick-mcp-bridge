@@ -12,3 +12,6 @@ auth.json
 Thumbs.db
 .agents/orchestra/private/
 .agents/orchestra/**/*.local.md
+integrations/telegram-bot/.env
+integrations/telegram-bot/data/
+output/

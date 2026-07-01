@@ -1,0 +1,28 @@
+{
+  "name": "@zoomerland/ticktick-telegram-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-first Telegram secretary for TickTick MCP Bridge.",
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "config-check": "node scripts/config-check.mjs",
+    "bridge-readonly-smoke": "node scripts/bridge-readonly-smoke.mjs",
+    "live-readiness": "node scripts/live-readiness.mjs",
+    "live-poll-once": "node scripts/live-poll-once.mjs",
+    "test": "node --test",
+    "dry-run": "node scripts/dry-run.mjs",
+    "proactive-dry-run": "node scripts/proactive-dry-run.mjs",
+    "checkin-dry-run": "node scripts/checkin-dry-run.mjs",
+    "reminder-dry-run": "node scripts/reminder-dry-run.mjs",
+    "voice-dry-run": "node scripts/voice-dry-run.mjs",
+    "voice-http-dry-run": "node scripts/voice-http-dry-run.mjs",
+    "voice-local-stt-dry-run": "node scripts/voice-local-stt-dry-run.mjs",
+    "resource-stress": "node --expose-gc scripts/resource-stress.mjs",
+    "start": "node src/index.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

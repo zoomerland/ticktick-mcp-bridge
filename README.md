@@ -34,7 +34,11 @@ The Codex plugin starts the local stdio MCP transport. For ChatGPT, follow the s
 ## Repository Layout
 
 ```text
+AGENTS.md
 .agents/plugins/marketplace.json
+.agents/orchestra/
+integrations/telegram-bot/
+integrations/local-stt-service/
 plugins/ticktick-mcp-bridge/
   .codex-plugin/plugin.json
   .mcp.json
@@ -44,6 +48,24 @@ plugins/ticktick-mcp-bridge/
   skills/
   docs/
 ```
+
+## Agent Coordination
+
+This repository includes a lightweight conductor-led coordination layer for
+multi-agent work:
+
+- [AGENTS.md](AGENTS.md)
+- [.agents/orchestra/](.agents/orchestra/)
+
+Runtime changes still belong in `plugins/ticktick-mcp-bridge/`. Do not commit
+local deployment secrets or private agent notes.
+
+The first Telegram secretary implementation slice lives in
+[`integrations/telegram-bot/`](integrations/telegram-bot/). It is designed as a
+separate process that talks to TickTick MCP Bridge over the MCP HTTP contract.
+The local STT service boundary for future Telegram voice transcription lives in
+[`integrations/local-stt-service/`](integrations/local-stt-service/). It ships
+mock and command providers, but no model artifacts.
 
 ## Security
 
