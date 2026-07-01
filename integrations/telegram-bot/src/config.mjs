@@ -46,6 +46,13 @@ function parseInteger(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function parseOllamaKeepAlive(value) {
+  if (value === undefined || value === "") return "";
+  const text = String(value).trim();
+  if (/^-?\d+$/.test(text)) return Number.parseInt(text, 10);
+  return text;
+}
+
 export function parseQuietHours(value) {
   const text = String(value || "23-8").trim();
   const match = text.match(/^(\d{1,2})\s*-\s*(\d{1,2})$/);
@@ -168,7 +175,7 @@ export function loadConfig(env = process.env) {
       enabled: llmEnabled,
       provider: llmProvider,
       baseUrl: env.TELEGRAM_LLM_OLLAMA_URL || env.OLLAMA_BASE_URL || "http://127.0.0.1:11434",
-      ollamaKeepAlive: env.TELEGRAM_LLM_OLLAMA_KEEP_ALIVE || "",
+      ollamaKeepAlive: parseOllamaKeepAlive(env.TELEGRAM_LLM_OLLAMA_KEEP_ALIVE),
       model: llmModel,
       routerModel: env.TELEGRAM_LLM_ROUTER_MODEL || llmModel,
       executorModel: env.TELEGRAM_LLM_EXECUTOR_MODEL || llmModel,

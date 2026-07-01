@@ -91,7 +91,7 @@ test("LLM config is explicit and redacted in summaries", () => {
   assert.equal(config.errors.length, 0);
   assert.equal(config.llm.enabled, true);
   assert.equal(config.llm.routerModel, "qwen3:14b");
-  assert.equal(config.llm.ollamaKeepAlive, "-1");
+  assert.equal(config.llm.ollamaKeepAlive, -1);
   assert.match(summary, /llmEnabled: true/);
   assert.match(summary, /llmModel: qwen3:14b/);
   assert.match(summary, /llmOllamaKeepAlive: -1/);
