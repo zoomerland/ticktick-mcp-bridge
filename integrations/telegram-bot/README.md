@@ -63,6 +63,29 @@ OpenAI can be selected with `TELEGRAM_LLM_PROVIDER=openai`, but it requires an
 explicit API key and model. See [LLM dev-live roadmap](docs/LLM_DEV_LIVE_ROADMAP.md)
 for the provider and confirmation plan.
 
+### LLM Chat Test
+
+Use the local chat harness to talk to the selected model without starting
+Telegram polling:
+
+```powershell
+npm run llm-chat
+```
+
+The harness forces `TELEGRAM_DRY_RUN=true`, enables LLM mode, and uses a mock
+TickTick bridge by default. It is safe for quick conversation and executor
+planning checks. To point it at a forwarded local Ollama endpoint:
+
+```powershell
+$env:TELEGRAM_LLM_OLLAMA_URL = "http://127.0.0.1:11435"
+$env:TELEGRAM_LLM_MODEL = "qwen3:14b"
+npm run llm-chat
+```
+
+Use `TELEGRAM_LLM_CHAT_BRIDGE=live` only for an explicit live MCP smoke.
+Confirmed writes stay disabled unless `TELEGRAM_LLM_CHAT_ALLOW_WRITES=true` is
+also set.
+
 When a pending travel or appointment draft asks for missing details, replies
 such as `30 minutes`, `полчаса`, or `от дома до клиники` are captured into the
 draft and shown back under `captured details`. This is deterministic parsing
@@ -168,6 +191,7 @@ npm run dry-run
 npm run proactive-dry-run
 npm run checkin-dry-run
 npm run reminder-dry-run
+npm run llm-chat
 npm run voice-dry-run
 npm run voice-http-dry-run
 npm run voice-local-stt-dry-run

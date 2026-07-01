@@ -15,6 +15,7 @@
     "proactive-dry-run": "node scripts/proactive-dry-run.mjs",
     "checkin-dry-run": "node scripts/checkin-dry-run.mjs",
     "reminder-dry-run": "node scripts/reminder-dry-run.mjs",
+    "llm-chat": "node scripts/llm-chat.mjs",
     "voice-dry-run": "node scripts/voice-dry-run.mjs",
     "voice-http-dry-run": "node scripts/voice-http-dry-run.mjs",
     "voice-local-stt-dry-run": "node scripts/voice-local-stt-dry-run.mjs",
