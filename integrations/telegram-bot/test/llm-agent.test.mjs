@@ -57,6 +57,7 @@ test("LLM executor mode routes through existing command router", async () => {
   const llmClient = new FakeLlmClient([
     { mode: "execute", reason: "user asks to view today" },
     { command: "today", argsText: "" },
+    "У тебя сегодня одна видимая задача: Visible task.",
   ]);
   const calls = [];
   const bridge = {
@@ -75,9 +76,39 @@ test("LLM executor mode routes through existing command router", async () => {
 
   assert.equal(result.kind, "bridge");
   assert.equal(result.routedBy, "llm_executor");
+  assert.equal(result.narratedBy, "llm_narrator");
   assert.equal(result.tool, "ticktick_today");
   assert.deepEqual(calls.map((call) => call.name), ["ticktick_today"]);
+  assert.match(result.text, /одна видимая задача/);
+  assert.equal(llmClient.calls.length, 3);
+  assert.match(llmClient.calls[2].messages[1].content, /Deterministic reply/);
+  assert.match(llmClient.calls[2].messages[1].content, /Visible task/);
+});
+
+test("LLM executor keeps deterministic read-only reply when narrator fails", async () => {
+  const llmClient = new FakeLlmClient([
+    { mode: "execute", reason: "user asks to view today" },
+    { command: "today", argsText: "" },
+    new Error("narrator unavailable"),
+  ]);
+  const bridge = {
+    async callTool() {
+      return { tasks: [{ title: "Visible task", dueBucket: "today" }] };
+    },
+  };
+
+  const result = await routeText("show me today's tasks", {
+    bridge,
+    config: config(),
+    session: new SessionStore(),
+    llmClient,
+  });
+
+  assert.equal(result.kind, "bridge");
+  assert.equal(result.routedBy, "llm_executor");
+  assert.equal(result.narratedBy, undefined);
   assert.match(result.text, /Visible task/);
+  assert.equal(llmClient.calls.length, 3);
 });
 
 test("LLM executor writes still create existing confirmation drafts", async () => {

@@ -51,6 +51,18 @@ const CHAT_SYSTEM = [
   "Do not claim that you changed TickTick. If action is needed, suggest a concrete next command or ask one concise question.",
 ].join("\n");
 
+const NARRATOR_SYSTEM = [
+  "You are the human-facing voice of a Telegram TickTick secretary.",
+  "You receive the user's original message, the executor command that was run, and the deterministic tool reply.",
+  "Rewrite the reply into a clear, natural answer in the same language as the user.",
+  "Do not expose JSON, raw field names, ids, or implementation details unless the user explicitly asks for them.",
+  "Preserve the important facts: task titles, list/project names, due dates, overdue/today/next labels, and priority.",
+  "If there are overdue tasks, say so plainly and helpfully.",
+  "Do not invent tasks, dates, counts, or actions.",
+  "Do not claim that you changed TickTick.",
+  "Keep it concise and easy to scan.",
+].join("\n");
+
 function parseJsonObject(text) {
   const value = String(text || "").trim()
     .replace(/^```(?:json)?\s*/i, "")
@@ -109,6 +121,38 @@ function executorOptions(config) {
   };
 }
 
+function shouldNarrateExecutorResult(result) {
+  if (!result) return false;
+  if (result.kind !== "bridge") return false;
+  return Boolean(result.text);
+}
+
+async function narrateExecutorResult({ text, command, commandArgsText, result, config, llmClient }) {
+  const reply = await llmClient.chat({
+    model: config.llm.chatModel,
+    think: config.llm.chatThink,
+    options: {
+      temperature: config.llm.chatTemperature,
+      top_p: 0.9,
+      num_ctx: config.llm.contextTokens,
+      num_predict: config.llm.chatMaxTokens,
+    },
+    messages: [
+      { role: "system", content: NARRATOR_SYSTEM },
+      {
+        role: "user",
+        content: [
+          `Original user message:\n${text}`,
+          `Executor command:\n/${command}${commandArgsText ? ` ${commandArgsText}` : ""}`,
+          `Deterministic reply:\n${result.text}`,
+        ].join("\n\n"),
+      },
+    ],
+  });
+  const narrated = String(reply.content || "").trim();
+  return narrated || result.text;
+}
+
 export async function routeLlmText(
   text,
   { bridge, config, llmClient, executeCommand },
@@ -163,9 +207,31 @@ export async function routeLlmText(
     if (!command) {
       throw new Error("LLM executor returned an unsupported command");
     }
-    return {
-      ...(await executeCommand(commandText({ command, argsText: planned.argsText }))),
+    const commandArgsText = String(planned.argsText || "").trim();
+    const result = {
+      ...(await executeCommand(commandText({ command, argsText: commandArgsText }))),
       routedBy: "llm_executor",
+    };
+    if (shouldNarrateExecutorResult(result)) {
+      try {
+        return {
+          ...result,
+          text: await narrateExecutorResult({
+            text,
+            command,
+            commandArgsText,
+            result,
+            config,
+            llmClient,
+          }),
+          narratedBy: "llm_narrator",
+        };
+      } catch {
+        return result;
+      }
+    }
+    return {
+      ...result,
     };
   } catch (error) {
     if (config.llm.failClosed) {
@@ -186,4 +252,5 @@ export const llmAgentInternals = {
   parseJsonObject,
   normalizeCommand,
   commandText,
+  shouldNarrateExecutorResult,
 };
