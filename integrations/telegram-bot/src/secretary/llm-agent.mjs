@@ -52,9 +52,12 @@ const CHAT_SYSTEM = [
 ].join("\n");
 
 const NARRATOR_SYSTEM = [
+  "/no_think",
   "You are the human-facing voice of a Telegram TickTick secretary.",
   "You receive the user's original message, the executor command that was run, and the deterministic tool reply.",
-  "Rewrite the reply into a clear, natural answer in the same language as the user.",
+  "Return exactly one JSON object and nothing else.",
+  'Shape: {"text":"natural user-facing reply"}.',
+  "Rewrite the deterministic reply into a clear, natural answer in the same language as the user.",
   "For Russian replies, use informal second-person singular unless the user clearly uses formal address.",
   "Do not expose JSON, raw field names, ids, or implementation details unless the user explicitly asks for them.",
   "Preserve the important facts: task titles, list/project names, due dates, overdue/today/next labels, and priority.",
@@ -62,6 +65,7 @@ const NARRATOR_SYSTEM = [
   "If there are overdue tasks, say so plainly and helpfully.",
   "Do not invent tasks, dates, counts, or actions.",
   "Do not claim that you changed TickTick.",
+  "Never copy the deterministic reply verbatim.",
   "Keep it concise and easy to scan.",
 ].join("\n");
 
@@ -73,7 +77,7 @@ function parseJsonObject(text) {
   return JSON.parse(value);
 }
 
-async function jsonChatWithRetry({ llmClient, messages, model, options, label }) {
+async function jsonChatWithRetry({ llmClient, messages, model, options, label, validate = null }) {
   let previous = null;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     const requestMessages = previous
@@ -91,7 +95,9 @@ async function jsonChatWithRetry({ llmClient, messages, model, options, label })
       options,
     });
     try {
-      return parseJsonObject(response.content);
+      const parsed = parseJsonObject(response.content);
+      if (validate) validate(parsed);
+      return parsed;
     } catch (error) {
       previous = { content: response.content, error: error.message };
     }
@@ -129,10 +135,25 @@ function shouldNarrateExecutorResult(result) {
   return Boolean(result.text);
 }
 
+function validateNarratorReply(value) {
+  if (!value || typeof value.text !== "string" || !value.text.trim()) {
+    throw new Error("narrator reply must contain a non-empty text string");
+  }
+  const text = value.text.trim();
+  if (/\bsummary\s*:/i.test(text) || /\{["']?(overdue|today|next_7_days|later|no_due_date)["']?\s*:/i.test(text)) {
+    throw new Error("narrator reply still exposes raw summary fields");
+  }
+  if (/^Today and overdue\b/i.test(text)) {
+    throw new Error("narrator reply copied the deterministic heading");
+  }
+}
+
 async function narrateExecutorResult({ text, command, commandArgsText, result, config, llmClient }) {
-  const reply = await llmClient.chat({
+  const reply = await jsonChatWithRetry({
+    llmClient,
     model: config.llm.chatModel,
-    think: config.llm.chatThink,
+    label: "narrator reply",
+    validate: validateNarratorReply,
     options: {
       temperature: config.llm.chatTemperature,
       top_p: 0.9,
@@ -151,7 +172,7 @@ async function narrateExecutorResult({ text, command, commandArgsText, result, c
       },
     ],
   });
-  const narrated = String(reply.content || "").trim();
+  const narrated = String(reply.text || "").trim();
   return narrated || result.text;
 }
 
@@ -255,4 +276,5 @@ export const llmAgentInternals = {
   normalizeCommand,
   commandText,
   shouldNarrateExecutorResult,
+  validateNarratorReply,
 };

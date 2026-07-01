@@ -57,7 +57,7 @@ test("LLM executor mode routes through existing command router", async () => {
   const llmClient = new FakeLlmClient([
     { mode: "execute", reason: "user asks to view today" },
     { command: "today", argsText: "" },
-    "У тебя сегодня одна видимая задача: Visible task.",
+    { text: "У тебя сегодня одна видимая задача: Visible task." },
   ]);
   const calls = [];
   const bridge = {
