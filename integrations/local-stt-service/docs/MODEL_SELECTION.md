@@ -206,8 +206,8 @@ Measure:
 1. Keep Telegram bot voice handling as the owner of routing.
 2. Keep STT as a pure audio-to-text service: it returns a transcript to the
    Telegram backend and does not call the LLM, MCP, or TickTick directly.
-3. Add a CPU-first command wrapper for SenseVoiceSmall, preferably through a
-   binary/GGUF path if it proves stable.
+3. Use the resident SenseVoiceSmall HTTP server for interactive Telegram
+   voice. Keep the command wrapper as a simple compatibility/debug path.
 4. Add a second CPU-first wrapper for Whisper through `whisper.cpp` or
    quantized `faster-whisper`.
 5. Run both through `STT_PROVIDER=command` on the same short Telegram voice

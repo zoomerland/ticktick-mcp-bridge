@@ -109,3 +109,13 @@ downloaded models, private voice notes, or transcripts. Install
 `imageio-ffmpeg` in the same Python environment when the input can be Telegram
 OGG/Opus; with `SENSEVOICE_PRECONVERT=true`, the wrapper converts incoming
 audio to 16 kHz mono WAV before calling SenseVoice.
+
+For interactive Telegram use, prefer the resident server:
+
+```powershell
+python providers/sensevoice_server.py
+```
+
+It exposes the same `GET /health` and `POST /transcribe` contract as the Node
+service, but loads SenseVoice once at startup and keeps the model warm until
+the process is stopped.
