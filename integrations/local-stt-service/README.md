@@ -10,6 +10,8 @@ Current providers:
 
 No model artifacts are bundled here. Real STT providers must be added behind the
 same `/transcribe` contract after model, license, and runtime validation.
+The current model-selection plan is tracked in
+[`docs/MODEL_SELECTION.md`](docs/MODEL_SELECTION.md).
 
 ## Endpoints
 
@@ -77,3 +79,33 @@ with the temporary audio file path and the process is started with
 `shell: false`; put each argument in a separate JSON array item. Stdout may be
 JSON such as `{ "text": "synthetic transcript" }` or plain text. The temporary
 audio file is removed after each request, including command failures.
+
+## SenseVoiceSmall Command Wrapper
+
+`providers/sensevoice_transcribe.py` is a CPU-first wrapper for
+`FunAudioLLM/SenseVoiceSmall`. It is intended for the first English/Mandarin
+Telegram voice gate and keeps STT separate from the Telegram backend, LLM, and
+TickTick bridge.
+
+Example configuration:
+
+```env
+STT_PROVIDER=command
+STT_COMMAND=python
+STT_COMMAND_ARGS=["providers/sensevoice_transcribe.py","{audio}"]
+STT_COMMAND_TIMEOUT_MS=120000
+SENSEVOICE_MODEL=FunAudioLLM/SenseVoiceSmall
+SENSEVOICE_DEVICE=cpu
+SENSEVOICE_HUB=hf
+SENSEVOICE_LANGUAGE=auto
+SENSEVOICE_USE_ITN=true
+SENSEVOICE_ENABLE_VAD=false
+SENSEVOICE_PRECONVERT=true
+SENSEVOICE_DISABLE_UPDATE=true
+```
+
+Install model dependencies and artifacts outside this repository. Do not commit
+downloaded models, private voice notes, or transcripts. Install
+`imageio-ffmpeg` in the same Python environment when the input can be Telegram
+OGG/Opus; with `SENSEVOICE_PRECONVERT=true`, the wrapper converts incoming
+audio to 16 kHz mono WAV before calling SenseVoice.

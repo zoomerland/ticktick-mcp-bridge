@@ -23,8 +23,8 @@
 
 ## Target State
 
-The Telegram secretary should become a text-first, then voice-first, personal
-agent that can:
+The Telegram secretary should become a text-first, then voice-input-capable,
+personal agent that can:
 
 1. Hold a natural planning conversation.
 2. Decide when a real TickTick operation is needed.
