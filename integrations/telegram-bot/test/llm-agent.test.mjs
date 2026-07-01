@@ -119,6 +119,51 @@ test("LLM executor keeps deterministic read-only reply when narrator fails", asy
   assert.equal(llmClient.calls.length, 3);
 });
 
+test("LLM executor rejects narrated task lists that omit deterministic tasks", async () => {
+  const llmClient = new FakeLlmClient([
+    { mode: "execute", reason: "user asks to view today" },
+    { command: "today", argsText: "" },
+    { text: "You have one overdue task: First task." },
+    { text: "Still only First task." },
+  ]);
+  const bridge = {
+    async callTool() {
+      return {
+        tasks: [
+          { title: "First task", dueBucket: "overdue" },
+          { title: "Second task", dueBucket: "overdue" },
+        ],
+      };
+    },
+  };
+
+  const result = await routeText("show me today's tasks", {
+    bridge,
+    config: config(),
+    session: new SessionStore(),
+    llmClient,
+  });
+
+  assert.equal(result.kind, "bridge");
+  assert.equal(result.routedBy, "llm_executor");
+  assert.equal(result.narratedBy, undefined);
+  assert.match(result.text, /First task/);
+  assert.match(result.text, /Second task/);
+  assert.equal(llmClient.calls.length, 4);
+});
+
+test("LLM narrator preservation check extracts task titles from deterministic lines", () => {
+  assert.deepEqual(
+    llmAgentInternals.listedTaskTitles([
+      "Today and overdue",
+      "Overdue",
+      "- First task [Inbox] due 2026-07-01T12:00:00+0300 priority high",
+      "- Second task priority low",
+    ].join("\n")),
+    ["First task", "Second task"],
+  );
+});
+
 test("LLM executor writes still create existing confirmation drafts", async () => {
   const llmClient = new FakeLlmClient([
     { mode: "execute", reason: "user asks to create a task" },

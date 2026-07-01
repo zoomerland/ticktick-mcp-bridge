@@ -135,7 +135,41 @@ function shouldNarrateExecutorResult(result) {
   return Boolean(result.text);
 }
 
-function validateNarratorReply(value) {
+function normalizeContainmentText(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractTaskTitleFromLine(line) {
+  return String(line || "")
+    .replace(/^-\s*/, "")
+    .replace(/\s+priority\s+(?:high|medium|low|none)\s*$/i, "")
+    .replace(/\s+due\s+\S+(?:\s|$).*$/i, "")
+    .replace(/\s+\[[^\]]+\]\s*$/i, "")
+    .trim();
+}
+
+function listedTaskTitles(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .filter((line) => /^-\s+\S/.test(line))
+    .map(extractTaskTitleFromLine)
+    .filter((title) => title.length >= 3);
+}
+
+function validateNarratorPreservesTasks(narratedText, deterministicText) {
+  const requiredTitles = listedTaskTitles(deterministicText);
+  if (!requiredTitles.length) return;
+  const normalizedNarrated = normalizeContainmentText(narratedText);
+  const missing = requiredTitles.filter((title) => !normalizedNarrated.includes(normalizeContainmentText(title)));
+  if (missing.length) {
+    throw new Error(`narrator reply omitted task titles: ${missing.join(", ")}`);
+  }
+}
+
+function validateNarratorReply(value, { deterministicText = "" } = {}) {
   if (!value || typeof value.text !== "string" || !value.text.trim()) {
     throw new Error("narrator reply must contain a non-empty text string");
   }
@@ -146,6 +180,7 @@ function validateNarratorReply(value) {
   if (/^Today and overdue\b/i.test(text)) {
     throw new Error("narrator reply copied the deterministic heading");
   }
+  validateNarratorPreservesTasks(text, deterministicText);
 }
 
 function normalizeNarratedText(text) {
@@ -160,7 +195,7 @@ async function narrateExecutorResult({ text, command, commandArgsText, result, c
     llmClient,
     model: config.llm.chatModel,
     label: "narrator reply",
-    validate: validateNarratorReply,
+    validate: (value) => validateNarratorReply(value, { deterministicText: result.text }),
     options: {
       temperature: config.llm.chatTemperature,
       top_p: 0.9,
@@ -284,5 +319,7 @@ export const llmAgentInternals = {
   commandText,
   shouldNarrateExecutorResult,
   validateNarratorReply,
+  validateNarratorPreservesTasks,
+  listedTaskTitles,
   normalizeNarratedText,
 };
