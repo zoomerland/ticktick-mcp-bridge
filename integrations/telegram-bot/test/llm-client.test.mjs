@@ -1,9 +1,35 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createLlmClient, OpenAIChatClient } from "../src/llm-client.mjs";
+import { createLlmClient, OllamaChatClient, OpenAIChatClient } from "../src/llm-client.mjs";
 
 test("createLlmClient returns null when disabled", () => {
   assert.equal(createLlmClient({ enabled: false }), null);
+});
+
+test("OllamaChatClient sends keep_alive when configured", async () => {
+  const requests = [];
+  const client = new OllamaChatClient({
+    baseUrl: "http://127.0.0.1:11434",
+    model: "qwen3:14b",
+    keepAlive: -1,
+    timeoutMs: 1000,
+    fetchImpl: async (url, request) => {
+      requests.push({ url, request });
+      return {
+        ok: true,
+        json: async () => ({ message: { content: "ok" } }),
+      };
+    },
+  });
+
+  const result = await client.chat({
+    messages: [{ role: "user", content: "hello" }],
+  });
+
+  assert.equal(result.content, "ok");
+  assert.equal(requests[0].url, "http://127.0.0.1:11434/api/chat");
+  const body = JSON.parse(requests[0].request.body);
+  assert.equal(body.keep_alive, -1);
 });
 
 test("OpenAIChatClient sends JSON-mode chat completions without storing data", async () => {

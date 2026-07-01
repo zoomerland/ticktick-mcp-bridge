@@ -29,14 +29,15 @@ function parseJsonResponse(response) {
 }
 
 export class OllamaChatClient {
-  constructor({ baseUrl, model, timeoutMs = 30000, fetchImpl = fetch } = {}) {
+  constructor({ baseUrl, model, keepAlive = "", timeoutMs = 30000, fetchImpl = fetch } = {}) {
     this.url = apiUrl(baseUrl);
     this.model = model || "qwen3:14b";
+    this.keepAlive = keepAlive;
     this.timeoutMs = timeoutMs;
     this.fetchImpl = fetchImpl;
   }
 
-  async chat({ messages, model = this.model, format, options = {}, think } = {}) {
+  async chat({ messages, model = this.model, format, keepAlive = this.keepAlive, options = {}, think } = {}) {
     if (!Array.isArray(messages) || messages.length === 0) {
       throw new LlmClientError("LLM chat requires messages");
     }
@@ -52,6 +53,7 @@ export class OllamaChatClient {
           messages,
           stream: false,
           ...(format ? { format } : {}),
+          ...(keepAlive === "" || keepAlive === undefined ? {} : { keep_alive: keepAlive }),
           ...(think === undefined ? {} : { think }),
           ...(options ? { options } : {}),
         }),
@@ -169,6 +171,7 @@ export function createLlmClient(config, { fetchImpl = fetch } = {}) {
     return new OllamaChatClient({
       baseUrl: config.baseUrl,
       model: config.model,
+      keepAlive: config.ollamaKeepAlive,
       timeoutMs: config.timeoutMs,
       fetchImpl,
     });

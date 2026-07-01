@@ -64,6 +64,7 @@ export function buildConfigSummary(config) {
     `llmEnabled: ${bool(config.llm.enabled)}`,
     `llmProvider: ${config.llm.provider}`,
     `llmBaseUrl: ${originTarget(config.llm.baseUrl)}`,
+    `llmOllamaKeepAlive: ${config.llm.ollamaKeepAlive || "default"}`,
     `llmOpenAiBaseUrl: ${originTarget(config.llm.openaiBaseUrl)}`,
     `llmOpenAiApiKey: ${present(config.llm.openaiApiKey)}`,
     `llmModel: ${config.llm.model}`,

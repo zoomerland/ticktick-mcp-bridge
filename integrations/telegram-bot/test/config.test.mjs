@@ -84,14 +84,17 @@ test("LLM config is explicit and redacted in summaries", () => {
     TELEGRAM_LLM_ENABLED: "true",
     TELEGRAM_LLM_MODEL: "qwen3:14b",
     TELEGRAM_LLM_OLLAMA_URL: "http://127.0.0.1:11434/private",
+    TELEGRAM_LLM_OLLAMA_KEEP_ALIVE: "-1",
   });
   const summary = buildConfigSummary(config);
 
   assert.equal(config.errors.length, 0);
   assert.equal(config.llm.enabled, true);
   assert.equal(config.llm.routerModel, "qwen3:14b");
+  assert.equal(config.llm.ollamaKeepAlive, "-1");
   assert.match(summary, /llmEnabled: true/);
   assert.match(summary, /llmModel: qwen3:14b/);
+  assert.match(summary, /llmOllamaKeepAlive: -1/);
   assert.doesNotMatch(summary, /11434\/private/);
 });
 

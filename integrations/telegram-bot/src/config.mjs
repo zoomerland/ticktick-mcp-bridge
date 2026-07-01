@@ -168,6 +168,7 @@ export function loadConfig(env = process.env) {
       enabled: llmEnabled,
       provider: llmProvider,
       baseUrl: env.TELEGRAM_LLM_OLLAMA_URL || env.OLLAMA_BASE_URL || "http://127.0.0.1:11434",
+      ollamaKeepAlive: env.TELEGRAM_LLM_OLLAMA_KEEP_ALIVE || "",
       model: llmModel,
       routerModel: env.TELEGRAM_LLM_ROUTER_MODEL || llmModel,
       executorModel: env.TELEGRAM_LLM_EXECUTOR_MODEL || llmModel,
