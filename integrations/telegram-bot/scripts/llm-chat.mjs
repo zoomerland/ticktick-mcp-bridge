@@ -160,6 +160,7 @@ try {
       const meta = [
         result.kind ? `kind=${result.kind}` : "",
         result.routedBy ? `routedBy=${result.routedBy}` : "",
+        result.narratedBy ? `narratedBy=${result.narratedBy}` : "",
         result.tool ? `tool=${result.tool}` : "",
       ].filter(Boolean).join(" ");
       if (meta) console.log(`[${meta}]`);
