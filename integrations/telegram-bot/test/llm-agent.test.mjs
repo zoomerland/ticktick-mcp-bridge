@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { routeText } from "../src/command-router.mjs";
 import { loadConfig } from "../src/config.mjs";
+import { llmAgentInternals } from "../src/secretary/llm-agent.mjs";
 import { SessionStore } from "../src/session-store.mjs";
 
 function config(overrides = {}) {
@@ -30,6 +31,13 @@ class FakeLlmClient {
     };
   }
 }
+
+test("LLM narrator normalizes Russian formal address", () => {
+  assert.equal(
+    llmAgentInternals.normalizeNarratedText("У вас 2 задачи, и у вас есть просрочка."),
+    "У тебя 2 задачи, и у тебя есть просрочка.",
+  );
+});
 
 test("LLM chat mode answers without calling TickTick bridge", async () => {
   const llmClient = new FakeLlmClient([

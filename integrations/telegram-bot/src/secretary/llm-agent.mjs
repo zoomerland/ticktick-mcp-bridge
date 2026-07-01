@@ -148,6 +148,13 @@ function validateNarratorReply(value) {
   }
 }
 
+function normalizeNarratedText(text) {
+  return String(text || "")
+    .trim()
+    .replace(/У вас/g, "У тебя")
+    .replace(/у вас/g, "у тебя");
+}
+
 async function narrateExecutorResult({ text, command, commandArgsText, result, config, llmClient }) {
   const reply = await jsonChatWithRetry({
     llmClient,
@@ -172,7 +179,7 @@ async function narrateExecutorResult({ text, command, commandArgsText, result, c
       },
     ],
   });
-  const narrated = String(reply.text || "").trim();
+  const narrated = normalizeNarratedText(reply.text);
   return narrated || result.text;
 }
 
@@ -277,4 +284,5 @@ export const llmAgentInternals = {
   commandText,
   shouldNarrateExecutorResult,
   validateNarratorReply,
+  normalizeNarratedText,
 };
