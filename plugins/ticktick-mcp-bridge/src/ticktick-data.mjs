@@ -53,6 +53,7 @@ export function normalizeTask(task = {}, project = {}) {
   const projectId = task.projectId || normalizedProject.id;
   const due = parseDate(task.dueDate);
   const start = parseDate(task.startDate);
+  const schedule = due || start;
   const priority = Number(task.priority || 0);
   return {
     ...task,
@@ -69,6 +70,7 @@ export function normalizeTask(task = {}, project = {}) {
     startDate: task.startDate,
     dueTimestamp: due ? due.getTime() : null,
     startTimestamp: start ? start.getTime() : null,
+    scheduleTimestamp: schedule ? schedule.getTime() : null,
     dueBucket: taskDueBucket(task),
     timeZone: task.timeZone,
     isAllDay: Boolean(task.isAllDay),
@@ -125,8 +127,8 @@ export function filterTasks(tasks, args = {}) {
 
 export function sortTasks(tasks) {
   return [...tasks].sort((a, b) => {
-    const aParsedDue = a.dueTimestamp ?? Date.parse(String(a.dueDate || "").replace(/([+-]\d{2})(\d{2})$/, "$1:$2"));
-    const bParsedDue = b.dueTimestamp ?? Date.parse(String(b.dueDate || "").replace(/([+-]\d{2})(\d{2})$/, "$1:$2"));
+    const aParsedDue = a.scheduleTimestamp ?? a.dueTimestamp ?? Date.parse(String(a.dueDate || a.startDate || "").replace(/([+-]\d{2})(\d{2})$/, "$1:$2"));
+    const bParsedDue = b.scheduleTimestamp ?? b.dueTimestamp ?? Date.parse(String(b.dueDate || b.startDate || "").replace(/([+-]\d{2})(\d{2})$/, "$1:$2"));
     const aDue = Number.isFinite(aParsedDue) ? aParsedDue : Number.MAX_SAFE_INTEGER;
     const bDue = Number.isFinite(bParsedDue) ? bParsedDue : Number.MAX_SAFE_INTEGER;
     const dueCompare = aDue - bDue;

@@ -155,16 +155,41 @@ export function ymd(date) {
   return date.toISOString().slice(0, 10);
 }
 
-export function taskDueBucket(task, now = new Date()) {
-  const due = parseDate(task.dueDate);
+export function configuredTimeZone() {
+  return process.env.TICKTICK_DEFAULT_TIMEZONE || process.env.TZ || "";
+}
+
+export function ymdInTimeZone(date, timeZone = configuredTimeZone()) {
+  if (!timeZone) return ymd(date);
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    const mapped = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    if (mapped.year && mapped.month && mapped.day) {
+      return `${mapped.year}-${mapped.month}-${mapped.day}`;
+    }
+  } catch {}
+  return ymd(date);
+}
+
+export function taskScheduleDate(task) {
+  return parseDate(task.dueDate) || parseDate(task.startDate);
+}
+
+export function taskDueBucket(task, now = new Date(), { timeZone = configuredTimeZone() } = {}) {
+  const due = taskScheduleDate(task);
   if (!due) return "no_due_date";
-  const today = ymd(now);
-  const dueDay = ymd(due);
+  const today = ymdInTimeZone(now, timeZone);
+  const dueDay = ymdInTimeZone(due, timeZone);
   if (dueDay < today) return "overdue";
   if (dueDay === today) return "today";
   const sevenDays = new Date(now);
   sevenDays.setDate(sevenDays.getDate() + 7);
-  if (due <= sevenDays) return "next_7_days";
+  if (dueDay <= ymdInTimeZone(sevenDays, timeZone)) return "next_7_days";
   return "later";
 }
 

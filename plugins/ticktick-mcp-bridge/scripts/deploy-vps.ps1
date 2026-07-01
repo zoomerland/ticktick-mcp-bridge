@@ -19,6 +19,8 @@ param(
 
   [securestring]$TickTickClientSecret,
 
+  [string]$DefaultTimezone = "UTC",
+
   [string]$RepoUrl = "https://github.com/zoomerland/ticktick-mcp-bridge.git",
 
   [string]$Branch = "main",
@@ -135,6 +137,11 @@ if ($Domain -notmatch "^[A-Za-z0-9.-]+$") {
   throw "Domain must be a bare hostname, for example ticktick-mcp.example.com."
 }
 
+$DefaultTimezone = $DefaultTimezone.Trim()
+if ($DefaultTimezone -and $DefaultTimezone -notmatch "^[A-Za-z0-9_+./-]+$") {
+  throw "DefaultTimezone must be an IANA timezone name such as Europe/Moscow, or UTC."
+}
+
 if ($SkipCaddyInstall -and $ReverseProxy -eq "auto") {
   Write-Warning "-SkipCaddyInstall is deprecated. Using -ReverseProxy manual for this run."
   $ReverseProxy = "manual"
@@ -164,6 +171,7 @@ $envContent = @"
 PORT=8787
 BIND_HOST=127.0.0.1
 PUBLIC_BASE_URL=$publicBaseUrl
+TICKTICK_DEFAULT_TIMEZONE=$DefaultTimezone
 
 TICKTICK_CLIENT_ID=$TickTickClientId
 TICKTICK_CLIENT_SECRET=$tickTickSecretPlain
