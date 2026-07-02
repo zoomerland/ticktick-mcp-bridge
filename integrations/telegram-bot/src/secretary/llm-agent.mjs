@@ -122,6 +122,16 @@ function normalizeCommand(command) {
   return EXECUTABLE_COMMANDS.has(normalized) ? normalized : "";
 }
 
+function directChatReason(text) {
+  const value = String(text || "").trim();
+  if (!value) return "";
+  const actionIntent = /\b(show|list|find|search|add|create|complete|done|postpone|move|delete|check|inspect|open|update|today|overdue|reminder|reminders|project|projects|inbox)\b|покажи|найди|поиск|добавь|создай|запиши|заверши|закрой|готово|перенеси|удали|проверь|сегодня|просроч|напоминан|проект|инбокс|входящ/i;
+  if (actionIntent.test(value)) return "";
+  const chatIntent = /\b(overwhelmed|anxious|stuck|tired|stressed|stressful|worried|motivat|support|think with me|help me think|help me decide|prioriti[sz]e|priority tradeoff)\b|тяжело|устал|устала|перегруж|тревож|застрял|застряла|поддерж|мотивац|давай подума|помоги подум|помоги реш|приоритет/i;
+  if (!chatIntent.test(value)) return "";
+  return "direct_chat_intent";
+}
+
 function commandText({ command, argsText }) {
   const args = String(argsText || "").trim();
   return args ? `/${command} ${args}` : `/${command}`;
@@ -326,20 +336,25 @@ export async function routeLlmText(
   const timings = {};
 
   try {
-    const routerStartedAt = nowMs();
-    const router = await jsonChatWithRetry({
-      llmClient,
-      model: config.llm.routerModel,
-      label: "router decision",
-      options: executorOptions(config),
-      messages: [
-        { role: "system", content: ROUTER_SYSTEM },
-        { role: "user", content: text },
-      ],
-    });
-    timings.llmRouterMs = elapsedMs(routerStartedAt);
-
-    const mode = normalizeMode(router.mode);
+    const directReason = directChatReason(text);
+    let mode = "chat";
+    if (directReason) {
+      timings.llmRouterSkipped = directReason;
+    } else {
+      const routerStartedAt = nowMs();
+      const router = await jsonChatWithRetry({
+        llmClient,
+        model: config.llm.routerModel,
+        label: "router decision",
+        options: executorOptions(config),
+        messages: [
+          { role: "system", content: ROUTER_SYSTEM },
+          { role: "user", content: text },
+        ],
+      });
+      timings.llmRouterMs = elapsedMs(routerStartedAt);
+      mode = normalizeMode(router.mode);
+    }
     if (mode === "chat") {
       const chatStartedAt = nowMs();
       const reply = await llmClient.chat({

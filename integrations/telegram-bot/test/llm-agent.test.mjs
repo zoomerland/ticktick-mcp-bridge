@@ -41,7 +41,6 @@ test("LLM narrator normalizes Russian formal address", () => {
 
 test("LLM chat mode answers without calling TickTick bridge", async () => {
   const llmClient = new FakeLlmClient([
-    { mode: "chat", reason: "user wants discussion" },
     "That sounds like a priority tradeoff. I would first protect the one task with the biggest consequence.",
   ]);
   const calls = [];
@@ -56,9 +55,32 @@ test("LLM chat mode answers without calling TickTick bridge", async () => {
   assert.equal(result.kind, "llm_chat");
   assert.match(result.text, /priority tradeoff/);
   assert.equal(calls.length, 0);
-  assert.equal(llmClient.calls.length, 2);
-  assert.equal(llmClient.calls[0].format, "json");
-  assert.equal(llmClient.calls[1].format, undefined);
+  assert.equal(llmClient.calls.length, 1);
+  assert.equal(llmClient.calls[0].format, undefined);
+  assert.equal(result._timings.llmRouterSkipped, "direct_chat_intent");
+});
+
+test("LLM direct chat fast path does not catch task commands", async () => {
+  const llmClient = new FakeLlmClient([
+    { mode: "execute", reason: "user asks to view tasks" },
+    { command: "today", argsText: "" },
+  ]);
+  const bridge = {
+    async callTool() {
+      return { tasks: [{ title: "Visible task", dueBucket: "today" }] };
+    },
+  };
+
+  const result = await routeText("please show me my tasks", {
+    bridge,
+    config: config(),
+    session: new SessionStore(),
+    llmClient,
+  });
+
+  assert.equal(result.kind, "bridge");
+  assert.equal(result.tool, "ticktick_today");
+  assert.equal(result._timings.llmRouterSkipped, undefined);
 });
 
 test("LLM executor mode routes through existing command router", async () => {
