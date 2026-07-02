@@ -83,6 +83,30 @@ test("LLM direct chat fast path does not catch task commands", async () => {
   assert.equal(result._timings.llmRouterSkipped, undefined);
 });
 
+test("LLM direct chat fast path supports Chinese support phrasing", async () => {
+  for (const text of [
+    "我压力很大，帮我想想优先级",
+    "我好攰，幫我諗下優先次序",
+  ]) {
+    const llmClient = new FakeLlmClient([
+      "Let us pick one small next step.",
+    ]);
+    const calls = [];
+
+    const result = await routeText(text, {
+      bridge: { callTool: async (...args) => calls.push(args) },
+      config: config(),
+      session: new SessionStore(),
+      llmClient,
+    });
+
+    assert.equal(result.kind, "llm_chat");
+    assert.equal(calls.length, 0);
+    assert.equal(llmClient.calls.length, 1);
+    assert.equal(result._timings.llmRouterSkipped, "direct_chat_intent");
+  }
+});
+
 test("LLM executor mode routes through existing command router", async () => {
   const llmClient = new FakeLlmClient([
     { mode: "execute", reason: "user asks to view today" },
@@ -229,6 +253,70 @@ test("natural Russian task list intent bypasses LLM and stays human-readable", a
   assert.match(result.text, /Просроченная задача/);
   assert.match(result.text, /Задача на сегодня/);
   assert.doesNotMatch(result.text, /summary:/);
+});
+
+test("natural Chinese task list intents bypass LLM and localize headings", async () => {
+  const cases = [
+    {
+      text: "我今天有什么任务？",
+      heading: /今天和逾期任务/,
+      overdue: /逾期/,
+      due: /截止 2026-06-29 21:00/,
+      priority: /高优先级/,
+    },
+    {
+      text: "我今日有咩任務？",
+      heading: /今日同逾期事項/,
+      overdue: /逾期/,
+      due: /期限 2026-06-29 21:00/,
+      priority: /高優先級/,
+    },
+  ];
+
+  for (const item of cases) {
+    const calls = [];
+    const bridge = {
+      async callTool(name, args) {
+        calls.push({ name, args });
+        return {
+          summary: { overdue: 1, today: 1 },
+          tasks: [
+            {
+              title: "Visible task",
+              dueBucket: "overdue",
+              projectName: "Inbox",
+              dueDate: "2026-06-29T21:00:00.000+0000",
+              priority: 5,
+            },
+            { title: "Today task", dueBucket: "today", projectName: "Work" },
+          ],
+        };
+      },
+    };
+    const llmClient = {
+      async chat() {
+        throw new Error("LLM should not be called for deterministic Chinese task-list intents");
+      },
+    };
+
+    const result = await routeText(item.text, {
+      bridge,
+      config: config(),
+      session: new SessionStore(),
+      llmClient,
+    });
+
+    assert.equal(result.kind, "bridge");
+    assert.equal(result.tool, "ticktick_today");
+    assert.deepEqual(calls.map((call) => call.name), ["ticktick_today"]);
+    assert.match(result.text, item.heading);
+    assert.match(result.text, item.overdue);
+    assert.match(result.text, /Visible task/);
+    assert.match(result.text, /Today task/);
+    assert.match(result.text, item.due);
+    assert.match(result.text, item.priority);
+    assert.doesNotMatch(result.text, /summary:/);
+  }
 });
 
 test("LLM narrator preservation check extracts task titles from deterministic lines", () => {

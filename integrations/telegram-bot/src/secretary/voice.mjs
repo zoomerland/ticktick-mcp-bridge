@@ -303,6 +303,17 @@ const SHORT_TRANSCRIPT_ALLOWLIST = new Set([
   "проекты",
   "сегодня",
   "стоп",
+  "今天",
+  "今日",
+  "帮助",
+  "幫助",
+  "取消",
+  "停止",
+  "任务",
+  "任務",
+  "项目",
+  "項目",
+  "收件箱",
 ]);
 
 export function isLowSignalVoiceTranscript(transcript) {

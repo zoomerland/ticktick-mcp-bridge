@@ -125,9 +125,9 @@ function normalizeCommand(command) {
 function directChatReason(text) {
   const value = String(text || "").trim();
   if (!value) return "";
-  const actionIntent = /\b(show|list|find|search|add|create|complete|done|postpone|move|delete|check|inspect|open|update|today|overdue|reminder|reminders|project|projects|inbox)\b|покажи|найди|поиск|добавь|создай|запиши|заверши|закрой|готово|перенеси|удали|проверь|сегодня|просроч|напоминан|проект|инбокс|входящ/i;
+  const actionIntent = /\b(show|list|find|search|add|create|complete|done|postpone|move|delete|check|inspect|open|update|today|overdue|reminder|reminders|project|projects|inbox)\b|покажи|найди|поиск|добавь|создай|запиши|заверши|закрой|готово|перенеси|удали|проверь|сегодня|просроч|напоминан|проект|инбокс|входящ|显示|顯示|展示|列出|查看|看看|睇|找|搵|搜索|搜尋|查询|查詢|添加|新增|新建|创建|創建|完成|做完|推迟|推遲|延后|延後|移动|移動|删除|刪除|检查|檢查|打开|打開|更新|逾期|过期|過期|提醒|项目|項目|收件箱|任务|任務/i;
   if (actionIntent.test(value)) return "";
-  const chatIntent = /\b(overwhelmed|anxious|stuck|tired|stressed|stressful|worried|motivat|support|think with me|help me think|help me decide|prioriti[sz]e|priority tradeoff)\b|тяжело|устал|устала|перегруж|тревож|застрял|застряла|поддерж|мотивац|давай подума|помоги подум|помоги реш|приоритет/i;
+  const chatIntent = /\b(overwhelmed|anxious|stuck|tired|stressed|stressful|worried|motivat|support|think with me|help me think|help me decide|prioriti[sz]e|priority tradeoff)\b|тяжело|устал|устала|перегруж|тревож|застрял|застряла|поддерж|мотивац|давай подума|помоги подум|помоги реш|приоритет|压力大|壓力大|很累|好攰|累了|攰|焦虑|焦慮|担心|擔心|卡住|支持|鼓励|鼓勵|动力|動力|陪我想|陪我諗|帮我想|幫我諗|帮我决定|幫我決定|优先级|優先級|優先次序|取舍|取捨/i;
   if (!chatIntent.test(value)) return "";
   return "direct_chat_intent";
 }
@@ -160,44 +160,69 @@ function shouldNarrateExecutorResult(result) {
   return Boolean(result.text);
 }
 
-function isRussianText(text) {
-  return /[А-Яа-яЁё]/.test(String(text || ""));
+function localeForText(text) {
+  const value = String(text || "");
+  if (/[А-Яа-яЁё]/.test(value)) return "ru";
+  if (/[\u3400-\u9fff]/.test(value)) {
+    return /[個這裡麼嗎過優級項顯尋資訊選擇壓擔慮幫諗攰務計劃檢刪創遲後動開閉]/.test(value)
+      ? "zhHant"
+      : "zhHans";
+  }
+  return "en";
 }
 
-function taskListHeading(line, russian) {
+function taskListHeading(line, locale) {
   const normalized = String(line || "").trim().toLowerCase();
   if (normalized === "today and overdue") {
-    return russian ? "Вот что висит на сегодня и в просроченном:" : "Here is what I found for today and overdue:";
+    if (locale === "ru") return "Вот что висит на сегодня и в просроченном:";
+    if (locale === "zhHans") return "今天和逾期任务：";
+    if (locale === "zhHant") return "今日同逾期事項：";
+    return "Here is what I found for today and overdue:";
   }
-  if (normalized === "overdue") return russian ? "Просрочено" : "Overdue";
-  if (normalized === "today") return russian ? "Сегодня" : "Today";
-  if (normalized === "next 7 days") return russian ? "Ближайшие 7 дней" : "Next 7 days";
-  if (normalized === "later") return russian ? "Позже" : "Later";
-  if (normalized === "no due date") return russian ? "Без даты" : "No due date";
-  if (normalized === "inbox") return russian ? "Входящие" : "Inbox";
-  if (normalized === "search results") return russian ? "Результаты поиска" : "Search results";
+  if (normalized === "overdue") return { ru: "Просрочено", zhHans: "逾期", zhHant: "逾期" }[locale] || "Overdue";
+  if (normalized === "today") return { ru: "Сегодня", zhHans: "今天", zhHant: "今日" }[locale] || "Today";
+  if (normalized === "next 7 days") return { ru: "Ближайшие 7 дней", zhHans: "未来 7 天", zhHant: "未來 7 日" }[locale] || "Next 7 days";
+  if (normalized === "later") return { ru: "Позже", zhHans: "稍后", zhHant: "稍後" }[locale] || "Later";
+  if (normalized === "no due date") return { ru: "Без даты", zhHans: "无日期", zhHant: "無日期" }[locale] || "No due date";
+  if (normalized === "inbox") return { ru: "Входящие", zhHans: "收件箱", zhHant: "收件箱" }[locale] || "Inbox";
+  if (normalized === "search results") return { ru: "Результаты поиска", zhHans: "搜索结果", zhHant: "搜尋結果" }[locale] || "Search results";
   return line;
 }
 
-function priorityText(priority, russian) {
+function priorityText(priority, locale) {
   const normalized = String(priority || "").toLowerCase();
   if (!normalized || normalized === "none") return "";
-  if (!russian) return `${normalized} priority`;
-  if (normalized === "high") return "высокий приоритет";
-  if (normalized === "medium") return "средний приоритет";
-  if (normalized === "low") return "низкий приоритет";
+  if (locale === "ru") {
+    if (normalized === "high") return "высокий приоритет";
+    if (normalized === "medium") return "средний приоритет";
+    if (normalized === "low") return "низкий приоритет";
+  }
+  if (locale === "zhHans") {
+    if (normalized === "high") return "高优先级";
+    if (normalized === "medium") return "中优先级";
+    if (normalized === "low") return "低优先级";
+  }
+  if (locale === "zhHant") {
+    if (normalized === "high") return "高優先級";
+    if (normalized === "medium") return "中優先級";
+    if (normalized === "low") return "低優先級";
+  }
+  if (locale === "en") return `${normalized} priority`;
   return `${normalized} priority`;
 }
 
-function dueText(dueDate, russian) {
+function dueText(dueDate, locale) {
   const raw = String(dueDate || "").trim();
   if (!raw) return "";
   const match = raw.match(/^(\d{4}-\d{2}-\d{2})(?:T(\d{2}:\d{2}))?/);
   const value = match ? `${match[1]}${match[2] ? ` ${match[2]}` : ""}` : raw;
-  return russian ? `срок ${value}` : `due ${value}`;
+  if (locale === "ru") return `срок ${value}`;
+  if (locale === "zhHans") return `截止 ${value}`;
+  if (locale === "zhHant") return `期限 ${value}`;
+  return `due ${value}`;
 }
 
-function formatTaskLineForUser(line, russian) {
+function formatTaskLineForUser(line, locale) {
   let text = String(line || "").replace(/^-\s*/, "").trim();
   let priority = "";
   text = text.replace(/\s+priority\s+([a-z]+)\s*$/i, (_match, value) => {
@@ -217,7 +242,7 @@ function formatTaskLineForUser(line, russian) {
     return "";
   }).trim();
 
-  const details = [project, dueText(due, russian), priorityText(priority, russian)].filter(Boolean);
+  const details = [project, dueText(due, locale), priorityText(priority, locale)].filter(Boolean);
   return details.length ? `- ${text} — ${details.join(", ")}` : `- ${text}`;
 }
 
@@ -228,17 +253,21 @@ export function formatTaskListForUser(result, userText) {
   const hasEmptyMessage = lines.some((line) => /^No matching open tasks\.$/i.test(line.trim()));
   if (!hasTasks && !hasEmptyMessage) return "";
 
-  const russian = isRussianText(userText);
+  const locale = localeForText(userText);
   const output = [];
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (!line || /^summary\s*:/i.test(line)) continue;
     if (/^-\s+\S/.test(line)) {
-      output.push(formatTaskLineForUser(line, russian));
+      output.push(formatTaskLineForUser(line, locale));
     } else if (/^No matching open tasks\.$/i.test(line)) {
-      output.push(russian ? "Открытых задач не нашёл." : "No matching open tasks.");
+      output.push({
+        ru: "Открытых задач не нашёл.",
+        zhHans: "没有找到打开的任务。",
+        zhHant: "沒有找到未完成任務。",
+      }[locale] || "No matching open tasks.");
     } else {
-      output.push(taskListHeading(line, russian));
+      output.push(taskListHeading(line, locale));
     }
   }
   return output.join("\n").trim();

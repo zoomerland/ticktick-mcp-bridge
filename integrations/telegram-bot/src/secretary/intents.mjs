@@ -62,23 +62,23 @@ const READ_ONLY_INTENTS = [
   },
   {
     command: "brief",
-    pattern: /\b(day plan|plan for today|daily brief|what is my plan)\b|план.*(дня|сегодня)|что.*(по плану|на сегодня)|как.*(план|день)/i,
+    pattern: /\b(day plan|plan for today|daily brief|what is my plan)\b|план.*(дня|сегодня)|что.*(по плану|на сегодня)|как.*(план|день)|今天.*(计划|安排)|今日.*(計劃|安排)|每日简报|每日簡報/i,
   },
   {
     command: "today",
-    pattern: /\b(what.*today|show.*today|today's tasks|today tasks|what tasks|show.*tasks|list.*tasks|my tasks|what do i have)\b|что.*сегодня|покажи.*сегодня|дела.*сегодня|задачи.*сегодня|какие.*задач|что.*задач|покажи.*задач|список.*задач|мои.*задач/i,
+    pattern: /\b(what.*today|show.*today|today's tasks|today tasks|what tasks|show.*tasks|list.*tasks|my tasks|what do i have)\b|что.*сегодня|покажи.*сегодня|дела.*сегодня|задачи.*сегодня|какие.*задач|что.*задач|покажи.*задач|список.*задач|мои.*задач|今天.*(任务|待办)|任务.*今天|有.*任务|我的.*任务|看看.*任务|查看.*任务|今日.*(任務|待辦)|任務.*今日|有咩.*任務|我.*任務|睇.*任務/i,
   },
   {
     command: "reminders",
-    pattern: /\b(next task|next thing|upcoming|remind me what|what is next)\b|что.*(дальше|следующее)|ближайш.*(дел|задач|напомин)|что.*скоро|напомни.*(что|дел)/i,
+    pattern: /\b(next task|next thing|upcoming|remind me what|what is next)\b|что.*(дальше|следующее)|ближайш.*(дел|задач|напомин)|что.*скоро|напомни.*(что|дел)|下一步|接下来|接下來|提醒|稍后|稍後|即将|即將/i,
   },
   {
     command: "overdue",
-    pattern: /\b(overdue|late tasks|what is late)\b|просроч|что.*опоздал|что.*зависло/i,
+    pattern: /\b(overdue|late tasks|what is late)\b|просроч|что.*опоздал|что.*зависло|逾期|过期|過期|超时|超時|拖延/i,
   },
   {
     command: "inbox",
-    pattern: /\b(inbox|triage)\b|инбокс|входящ|разобрать.*задач/i,
+    pattern: /\b(inbox|triage)\b|инбокс|входящ|разобрать.*задач|收件箱|待整理/i,
   },
   {
     command: "proactive",
@@ -86,7 +86,7 @@ const READ_ONLY_INTENTS = [
   },
   {
     command: "profile",
-    pattern: /\b(my profile|settings)\b|мой профиль|настройки|как ты меня знаешь/i,
+    pattern: /\b(my profile|settings)\b|мой профиль|настройки|как ты меня знаешь|设置|設定|我的资料|我的資料/i,
   },
 ];
 

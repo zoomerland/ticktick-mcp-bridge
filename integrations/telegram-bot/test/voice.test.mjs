@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { loadConfig } from "../src/config.mjs";
-import { downloadVoiceAudio, getVoiceMessage, transcribeVoiceMessage } from "../src/secretary/voice.mjs";
+import {
+  downloadVoiceAudio,
+  getVoiceMessage,
+  isLowSignalVoiceTranscript,
+  transcribeVoiceMessage,
+} from "../src/secretary/voice.mjs";
 
 test("getVoiceMessage extracts safe metadata only", () => {
   const voice = getVoiceMessage({
@@ -21,6 +26,14 @@ test("getVoiceMessage extracts safe metadata only", () => {
     mimeType: "audio/ogg",
     fileSize: 1024,
   });
+});
+
+test("low-signal voice transcript guard allows short Chinese commands", () => {
+  assert.equal(isLowSignalVoiceTranscript("on."), true);
+  assert.equal(isLowSignalVoiceTranscript("今天"), false);
+  assert.equal(isLowSignalVoiceTranscript("今日"), false);
+  assert.equal(isLowSignalVoiceTranscript("任务"), false);
+  assert.equal(isLowSignalVoiceTranscript("任務"), false);
 });
 
 test("transcribeVoiceMessage fails closed when disabled", async () => {
