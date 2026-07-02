@@ -47,8 +47,10 @@ import { normalizeCommandName, resolveNaturalIntent } from "./secretary/intents.
 import { formatTaskListForUser, routeLlmText } from "./secretary/llm-agent.mjs";
 import {
   downloadVoiceAudio,
+  formatLowSignalVoiceTranscript,
   formatVoiceRouted,
   getVoiceMessage,
+  isLowSignalVoiceTranscript,
   transcribeVoiceMessage,
 } from "./secretary/voice.mjs";
 import { globalSessionStore } from "./session-store.mjs";
@@ -583,6 +585,25 @@ export async function handleUpdate(
     const transcription = await transcribeVoiceMessage({ voice, config, audio, fetchImpl: voiceFetchImpl });
     Object.assign(timings, transcription.timings || {});
     if (transcription.ok) {
+      if (isLowSignalVoiceTranscript(transcription.transcript)) {
+        timings.totalMs = elapsedMs(updateStartedAt);
+        logVoiceTiming(logger, {
+          status: "low_signal_transcript",
+          updateId: update.update_id,
+          provider: transcription.provider,
+          voiceDurationSec: voice.duration ?? null,
+          voiceFileSize: voice.fileSize ?? null,
+          voiceMimeType: voice.mimeType || null,
+          audioBytes: transcription.audioBytes || timings.audioBytes || null,
+          timings,
+        });
+        return {
+          chatId,
+          kind: "voice_received",
+          text: formatLowSignalVoiceTranscript(),
+          authorized: true,
+        };
+      }
       const routeStartedAt = nowMs();
       const routed = await routeText(transcription.transcript, {
         bridge,

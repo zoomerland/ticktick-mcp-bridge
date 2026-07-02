@@ -281,6 +281,47 @@ export async function transcribeVoiceMessage({ voice, config, audio = null, fetc
   };
 }
 
+const SHORT_TRANSCRIPT_ALLOWLIST = new Set([
+  "brief",
+  "cancel",
+  "checkin",
+  "help",
+  "inbox",
+  "plan",
+  "profile",
+  "projects",
+  "reminders",
+  "routes",
+  "today",
+  "overdue",
+  "день",
+  "инбокс",
+  "отмена",
+  "план",
+  "помощь",
+  "профиль",
+  "проекты",
+  "сегодня",
+  "стоп",
+]);
+
+export function isLowSignalVoiceTranscript(transcript) {
+  const words = String(transcript || "").toLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+  if (!words.length) return true;
+  if (words.length > 1) return false;
+  const word = words[0];
+  if (SHORT_TRANSCRIPT_ALLOWLIST.has(word)) return false;
+  return word.length <= 3;
+}
+
+export function formatLowSignalVoiceTranscript() {
+  return [
+    "Voice message received.",
+    "The transcript was too short or unclear, so I did not send it to the assistant.",
+    "Please repeat it with a few more words.",
+  ].join("\n");
+}
+
 export function formatVoiceRouted(transcription, routed) {
   return [
     transcription.text,

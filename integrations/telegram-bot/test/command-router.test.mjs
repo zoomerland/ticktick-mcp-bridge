@@ -1001,3 +1001,51 @@ test("authorized voice update can download small voice and route http transcript
   assert.doesNotMatch(logLines[0], /what is next/);
   assert.doesNotMatch(logLines[0], /Soon task/);
 });
+
+test("authorized voice update drops low-signal http transcript before LLM routing", async () => {
+  const bridgeCalls = [];
+  const logLines = [];
+  const reply = await handleUpdate(voiceUpdate(), {
+    bridge: { callTool: async (...args) => bridgeCalls.push(args) },
+    config: config({
+      TELEGRAM_VOICE_ENABLED: "true",
+      TELEGRAM_VOICE_PROVIDER: "http",
+      TELEGRAM_VOICE_DOWNLOAD_ENABLED: "true",
+      TELEGRAM_VOICE_MAX_BYTES: "10",
+      TELEGRAM_VOICE_HTTP_URL: "http://127.0.0.1:9876/transcribe",
+    }),
+    telegram: {
+      async getFile() {
+        return { file_path: "voice/file.wav", file_size: 3 };
+      },
+      async downloadFileBytes() {
+        return Uint8Array.from([1, 2, 3]);
+      },
+    },
+    voiceFetchImpl: async () => ({
+      ok: true,
+      json: async () => ({
+        text: "on.",
+        provider: "sensevoice_resident",
+        audioBytes: 3,
+        elapsedMs: 321,
+        requestElapsedMs: 456,
+      }),
+    }),
+    rateLimiter: new RateLimiter({ windowMs: 60000, maxCommands: 10 }),
+    session: new SessionStore(),
+    llmClient: { chat: async () => { throw new Error("should not call LLM"); } },
+    logger: { info: (line) => logLines.push(line) },
+  });
+
+  assert.equal(reply.kind, "voice_received");
+  assert.match(reply.text, /too short or unclear/);
+  assert.equal(bridgeCalls.length, 0);
+  assert.equal(logLines.length, 1);
+  const event = JSON.parse(logLines[0]);
+  assert.equal(event.status, "low_signal_transcript");
+  assert.equal(event.provider, "sensevoice_resident");
+  assert.equal(event.timings.sttProviderElapsedMs, 321);
+  assert.equal(typeof event.timings.totalMs, "number");
+  assert.doesNotMatch(logLines[0], /on\./);
+});
