@@ -51,7 +51,6 @@ function bucketLabel(bucket) {
 export function formatBucketedTaskList(title, data, { maxResults = 10 } = {}) {
   const tasks = getTasks(data);
   const lines = [title];
-  if (data?.summary) lines.push(`summary: ${JSON.stringify(data.summary)}`);
   if (tasks.length === 0) {
     lines.push("No matching open tasks.");
     return lines.join("\n");
@@ -78,7 +77,6 @@ export function formatBucketedTaskList(title, data, { maxResults = 10 } = {}) {
 export function formatTaskList(title, data, { maxResults = 10 } = {}) {
   const tasks = getTasks(data);
   const lines = [title];
-  if (data?.summary) lines.push(`summary: ${JSON.stringify(data.summary)}`);
   if (tasks.length === 0) {
     lines.push("No matching open tasks.");
     return lines.join("\n");

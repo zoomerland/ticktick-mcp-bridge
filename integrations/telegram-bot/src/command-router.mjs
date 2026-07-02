@@ -44,7 +44,7 @@ import {
 } from "./secretary/profile.mjs";
 import { loadUpcomingReminders } from "./secretary/reminders.mjs";
 import { normalizeCommandName, resolveNaturalIntent } from "./secretary/intents.mjs";
-import { routeLlmText } from "./secretary/llm-agent.mjs";
+import { formatTaskListForUser, routeLlmText } from "./secretary/llm-agent.mjs";
 import {
   downloadVoiceAudio,
   formatVoiceRouted,
@@ -162,6 +162,7 @@ export async function routeText(
 ) {
   const routeStartedAt = nowMs();
   let { command, argsText } = parseCommand(text);
+  let naturalUserText = "";
   const key = sessionKey(principal);
 
   if (!command && argsText) {
@@ -213,7 +214,12 @@ export async function routeText(
         text: await loadScheduleRepair({ bridge, config, userText: argsText }),
       };
     }
-    if (!pending && !pendingAction && allowLlm && config.llm?.enabled) {
+    const naturalIntent = resolveNaturalIntent(argsText, { hasPending: Boolean(pending || pendingAction) });
+    if (naturalIntent && naturalIntent.command !== "proactive") {
+      naturalUserText = argsText;
+      command = naturalIntent.command;
+      argsText = naturalIntent.argsText;
+    } else if (!pending && !pendingAction && allowLlm && config.llm?.enabled) {
       const llmResult = await routeLlmText(argsText, {
         bridge,
         config,
@@ -229,11 +235,12 @@ export async function routeText(
       });
       if (llmResult) return withTiming(llmResult, { routeTotalMs: elapsedMs(routeStartedAt) });
     }
-    const naturalIntent = resolveNaturalIntent(argsText, { hasPending: Boolean(pending) });
-    if (naturalIntent) {
+    if (!command && naturalIntent) {
+      naturalUserText = argsText;
       command = naturalIntent.command;
       argsText = naturalIntent.argsText;
-    } else {
+    }
+    if (!command) {
       const profile = session?.getProfile(key);
       const draft = pending
         ? refineTaskDraft(pending, argsText, config, profile)
@@ -499,11 +506,15 @@ export async function routeText(
 
   const bridgeStartedAt = nowMs();
   const data = await bridge.callTool(spec.name, spec.args(argsText, config));
+  const formattedText = formatBridgeResult(command, data, config);
+  const userText = naturalUserText
+    ? (formatTaskListForUser({ tool: spec.name, text: formattedText }, naturalUserText) || formattedText)
+    : formattedText;
   return {
     kind: "bridge",
     command,
     tool: spec.name,
-    text: formatBridgeResult(command, data, config),
+    text: userText,
     _timings: {
       bridgeMs: elapsedMs(bridgeStartedAt),
       routeTotalMs: elapsedMs(routeStartedAt),

@@ -192,7 +192,7 @@ export function loadConfig(env = process.env) {
       chatTemperature: Number.isFinite(Number.parseFloat(env.TELEGRAM_LLM_CHAT_TEMPERATURE))
         ? Number.parseFloat(env.TELEGRAM_LLM_CHAT_TEMPERATURE)
         : 0.4,
-      chatThink: parseBoolean(env.TELEGRAM_LLM_CHAT_THINK, true),
+      chatThink: parseBoolean(env.TELEGRAM_LLM_CHAT_THINK, false),
       failClosed: parseBoolean(env.TELEGRAM_LLM_FAIL_CLOSED, true),
     },
     operational: {

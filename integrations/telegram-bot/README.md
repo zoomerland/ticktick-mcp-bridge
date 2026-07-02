@@ -239,6 +239,8 @@ Useful local profile/runtime settings:
 - `TELEGRAM_LLM_TIMEOUT_MS=120000`
 - `TELEGRAM_LLM_ROUTER_MODEL`, `TELEGRAM_LLM_EXECUTOR_MODEL`, and
   `TELEGRAM_LLM_CHAT_MODEL` when the two modes should use different models
+- `TELEGRAM_LLM_CHAT_THINK=false` for responsive Telegram chat replies; set it
+  to `true` only when slower, more deliberative local-model replies are wanted
 - `TELEGRAM_LLM_FAIL_CLOSED=true` so unsafe model output does not become a task
   draft by accident
 - `TELEGRAM_CONFIRM_WRITES=false` for the first read-only live smoke

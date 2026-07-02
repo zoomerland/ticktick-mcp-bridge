@@ -65,7 +65,6 @@ test("LLM executor mode routes through existing command router", async () => {
   const llmClient = new FakeLlmClient([
     { mode: "execute", reason: "user asks to view today" },
     { command: "today", argsText: "" },
-    { text: "У тебя сегодня одна видимая задача: Visible task." },
   ]);
   const calls = [];
   const bridge = {
@@ -75,37 +74,7 @@ test("LLM executor mode routes through existing command router", async () => {
     },
   };
 
-  const result = await routeText("show me today's tasks", {
-    bridge,
-    config: config(),
-    session: new SessionStore(),
-    llmClient,
-  });
-
-  assert.equal(result.kind, "bridge");
-  assert.equal(result.routedBy, "llm_executor");
-  assert.equal(result.narratedBy, "llm_narrator");
-  assert.equal(result.tool, "ticktick_today");
-  assert.deepEqual(calls.map((call) => call.name), ["ticktick_today"]);
-  assert.match(result.text, /одна видимая задача/);
-  assert.equal(llmClient.calls.length, 3);
-  assert.match(llmClient.calls[2].messages[1].content, /Deterministic reply/);
-  assert.match(llmClient.calls[2].messages[1].content, /Visible task/);
-});
-
-test("LLM executor keeps deterministic read-only reply when narrator fails", async () => {
-  const llmClient = new FakeLlmClient([
-    { mode: "execute", reason: "user asks to view today" },
-    { command: "today", argsText: "" },
-    new Error("narrator unavailable"),
-  ]);
-  const bridge = {
-    async callTool() {
-      return { tasks: [{ title: "Visible task", dueBucket: "today" }] };
-    },
-  };
-
-  const result = await routeText("show me today's tasks", {
+  const result = await routeText("please inspect my current TickTick queue", {
     bridge,
     config: config(),
     session: new SessionStore(),
@@ -115,16 +84,45 @@ test("LLM executor keeps deterministic read-only reply when narrator fails", asy
   assert.equal(result.kind, "bridge");
   assert.equal(result.routedBy, "llm_executor");
   assert.equal(result.narratedBy, undefined);
+  assert.equal(result.formattedBy, "deterministic_task_list");
+  assert.equal(result.tool, "ticktick_today");
+  assert.deepEqual(calls.map((call) => call.name), ["ticktick_today"]);
   assert.match(result.text, /Visible task/);
+  assert.equal(llmClient.calls.length, 2);
+});
+
+test("LLM executor keeps deterministic read-only reply when narrator fails", async () => {
+  const llmClient = new FakeLlmClient([
+    { mode: "execute", reason: "user asks for diagnostics" },
+    { command: "diagnostics", argsText: "" },
+    new Error("narrator unavailable"),
+  ]);
+  const bridge = {
+    async callTool() {
+      return { ok: true, checks: { oauth: true } };
+    },
+  };
+
+  const result = await routeText("show diagnostics", {
+    bridge,
+    config: config(),
+    session: new SessionStore(),
+    llmClient,
+  });
+
+  assert.equal(result.kind, "bridge");
+  assert.equal(result.routedBy, "llm_executor");
+  assert.equal(result.narratedBy, undefined);
+  assert.match(result.text, /Diagnostics/);
+  assert.equal(result._timings.llmNarratorStatus, "failed");
+  assert.equal(typeof result._timings.llmNarratorMs, "number");
   assert.equal(llmClient.calls.length, 3);
 });
 
-test("LLM executor rejects narrated task lists that omit deterministic tasks", async () => {
+test("LLM executor formats task lists without narrator and preserves all tasks", async () => {
   const llmClient = new FakeLlmClient([
     { mode: "execute", reason: "user asks to view today" },
     { command: "today", argsText: "" },
-    { text: "You have one overdue task: First task." },
-    { text: "Still only First task." },
   ]);
   const bridge = {
     async callTool() {
@@ -137,7 +135,7 @@ test("LLM executor rejects narrated task lists that omit deterministic tasks", a
     },
   };
 
-  const result = await routeText("show me today's tasks", {
+  const result = await routeText("please inspect my current TickTick queue", {
     bridge,
     config: config(),
     session: new SessionStore(),
@@ -147,9 +145,68 @@ test("LLM executor rejects narrated task lists that omit deterministic tasks", a
   assert.equal(result.kind, "bridge");
   assert.equal(result.routedBy, "llm_executor");
   assert.equal(result.narratedBy, undefined);
+  assert.equal(result.formattedBy, "deterministic_task_list");
   assert.match(result.text, /First task/);
   assert.match(result.text, /Second task/);
-  assert.equal(llmClient.calls.length, 4);
+  assert.doesNotMatch(result.text, /summary:/);
+  assert.equal(llmClient.calls.length, 2);
+});
+
+test("task list fast formatter localizes Russian and removes raw summary", () => {
+  const text = llmAgentInternals.formatTaskListForUser({
+    tool: "ticktick_today",
+    text: [
+      "Today and overdue",
+      'summary: {"overdue":2,"today":0}',
+      "Overdue",
+      "- First task [Inbox] due 2026-06-29T21:00:00.000+0000 priority high",
+      "- Second task [Work]",
+    ].join("\n"),
+  }, "Расскажи мне, какие у меня есть задачи?");
+
+  assert.match(text, /Вот что висит/);
+  assert.match(text, /Просрочено/);
+  assert.match(text, /First task/);
+  assert.match(text, /Second task/);
+  assert.match(text, /срок 2026-06-29 21:00/);
+  assert.match(text, /высокий приоритет/);
+  assert.doesNotMatch(text, /summary:/);
+});
+
+test("natural Russian task list intent bypasses LLM and stays human-readable", async () => {
+  const calls = [];
+  const bridge = {
+    async callTool(name, args) {
+      calls.push({ name, args });
+      return {
+        summary: { overdue: 1, today: 1 },
+        tasks: [
+          { title: "Просроченная задача", dueBucket: "overdue", projectName: "Inbox" },
+          { title: "Задача на сегодня", dueBucket: "today", projectName: "Work" },
+        ],
+      };
+    },
+  };
+  const llmClient = {
+    async chat() {
+      throw new Error("LLM should not be called for deterministic task-list intents");
+    },
+  };
+
+  const result = await routeText("Расскажи мне, какие у меня есть задачи?", {
+    bridge,
+    config: config(),
+    session: new SessionStore(),
+    llmClient,
+  });
+
+  assert.equal(result.kind, "bridge");
+  assert.equal(result.tool, "ticktick_today");
+  assert.deepEqual(calls.map((call) => call.name), ["ticktick_today"]);
+  assert.match(result.text, /Вот что висит/);
+  assert.match(result.text, /Просроченная задача/);
+  assert.match(result.text, /Задача на сегодня/);
+  assert.doesNotMatch(result.text, /summary:/);
 });
 
 test("LLM narrator preservation check extracts task titles from deterministic lines", () => {

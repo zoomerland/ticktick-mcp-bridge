@@ -66,7 +66,7 @@ const READ_ONLY_INTENTS = [
   },
   {
     command: "today",
-    pattern: /\b(what.*today|show.*today|today's tasks|today tasks)\b|что.*сегодня|покажи.*сегодня|дела.*сегодня|задачи.*сегодня/i,
+    pattern: /\b(what.*today|show.*today|today's tasks|today tasks|what tasks|show.*tasks|list.*tasks|my tasks|what do i have)\b|что.*сегодня|покажи.*сегодня|дела.*сегодня|задачи.*сегодня|какие.*задач|что.*задач|покажи.*задач|список.*задач|мои.*задач/i,
   },
   {
     command: "reminders",

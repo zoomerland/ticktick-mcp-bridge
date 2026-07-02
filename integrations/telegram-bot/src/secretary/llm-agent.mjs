@@ -18,6 +18,13 @@ const EXECUTABLE_COMMANDS = new Set([
   "cancel",
 ]);
 
+const TASK_LIST_TOOLS = new Set([
+  "ticktick_today",
+  "ticktick_overdue",
+  "ticktick_inbox",
+  "ticktick_search_tasks",
+]);
+
 const EXECUTOR_SYSTEM = [
   "/no_think",
   "You are a strict executor planner for a Telegram TickTick secretary.",
@@ -141,6 +148,90 @@ function shouldNarrateExecutorResult(result) {
   if (!result) return false;
   if (result.kind !== "bridge") return false;
   return Boolean(result.text);
+}
+
+function isRussianText(text) {
+  return /[А-Яа-яЁё]/.test(String(text || ""));
+}
+
+function taskListHeading(line, russian) {
+  const normalized = String(line || "").trim().toLowerCase();
+  if (normalized === "today and overdue") {
+    return russian ? "Вот что висит на сегодня и в просроченном:" : "Here is what I found for today and overdue:";
+  }
+  if (normalized === "overdue") return russian ? "Просрочено" : "Overdue";
+  if (normalized === "today") return russian ? "Сегодня" : "Today";
+  if (normalized === "next 7 days") return russian ? "Ближайшие 7 дней" : "Next 7 days";
+  if (normalized === "later") return russian ? "Позже" : "Later";
+  if (normalized === "no due date") return russian ? "Без даты" : "No due date";
+  if (normalized === "inbox") return russian ? "Входящие" : "Inbox";
+  if (normalized === "search results") return russian ? "Результаты поиска" : "Search results";
+  return line;
+}
+
+function priorityText(priority, russian) {
+  const normalized = String(priority || "").toLowerCase();
+  if (!normalized || normalized === "none") return "";
+  if (!russian) return `${normalized} priority`;
+  if (normalized === "high") return "высокий приоритет";
+  if (normalized === "medium") return "средний приоритет";
+  if (normalized === "low") return "низкий приоритет";
+  return `${normalized} priority`;
+}
+
+function dueText(dueDate, russian) {
+  const raw = String(dueDate || "").trim();
+  if (!raw) return "";
+  const match = raw.match(/^(\d{4}-\d{2}-\d{2})(?:T(\d{2}:\d{2}))?/);
+  const value = match ? `${match[1]}${match[2] ? ` ${match[2]}` : ""}` : raw;
+  return russian ? `срок ${value}` : `due ${value}`;
+}
+
+function formatTaskLineForUser(line, russian) {
+  let text = String(line || "").replace(/^-\s*/, "").trim();
+  let priority = "";
+  text = text.replace(/\s+priority\s+([a-z]+)\s*$/i, (_match, value) => {
+    priority = value;
+    return "";
+  }).trim();
+
+  let due = "";
+  text = text.replace(/\s+due\s+(\S+)\s*$/i, (_match, value) => {
+    due = value;
+    return "";
+  }).trim();
+
+  let project = "";
+  text = text.replace(/\s+\[([^\]]+)\]\s*$/i, (_match, value) => {
+    project = value;
+    return "";
+  }).trim();
+
+  const details = [project, dueText(due, russian), priorityText(priority, russian)].filter(Boolean);
+  return details.length ? `- ${text} — ${details.join(", ")}` : `- ${text}`;
+}
+
+export function formatTaskListForUser(result, userText) {
+  if (!TASK_LIST_TOOLS.has(result?.tool)) return "";
+  const lines = String(result?.text || "").split(/\r?\n/);
+  const hasTasks = lines.some((line) => /^-\s+\S/.test(line));
+  const hasEmptyMessage = lines.some((line) => /^No matching open tasks\.$/i.test(line.trim()));
+  if (!hasTasks && !hasEmptyMessage) return "";
+
+  const russian = isRussianText(userText);
+  const output = [];
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || /^summary\s*:/i.test(line)) continue;
+    if (/^-\s+\S/.test(line)) {
+      output.push(formatTaskLineForUser(line, russian));
+    } else if (/^No matching open tasks\.$/i.test(line)) {
+      output.push(russian ? "Открытых задач не нашёл." : "No matching open tasks.");
+    } else {
+      output.push(taskListHeading(line, russian));
+    }
+  }
+  return output.join("\n").trim();
 }
 
 function normalizeContainmentText(text) {
@@ -300,9 +391,21 @@ export async function routeLlmText(
     };
     timings.executorCommandMs = elapsedMs(commandStartedAt);
     Object.assign(timings, result._timings || {});
+    const taskListText = formatTaskListForUser(result, text);
+    if (taskListText) {
+      return {
+        ...result,
+        text: taskListText,
+        formattedBy: "deterministic_task_list",
+        _timings: {
+          ...timings,
+          llmTotalMs: elapsedMs(startedAt),
+        },
+      };
+    }
     if (shouldNarrateExecutorResult(result)) {
+      const narratorStartedAt = nowMs();
       try {
-        const narratorStartedAt = nowMs();
         const narratedText = await narrateExecutorResult({
           text,
           command,
@@ -322,6 +425,8 @@ export async function routeLlmText(
           },
         };
       } catch {
+        timings.llmNarratorMs = elapsedMs(narratorStartedAt);
+        timings.llmNarratorStatus = "failed";
         return {
           ...result,
           _timings: {
@@ -364,6 +469,7 @@ export const llmAgentInternals = {
   shouldNarrateExecutorResult,
   validateNarratorReply,
   validateNarratorPreservesTasks,
+  formatTaskListForUser,
   listedTaskTitles,
   normalizeNarratedText,
 };
