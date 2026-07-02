@@ -129,6 +129,14 @@ function executorOptions(config) {
   };
 }
 
+function nowMs() {
+  return Date.now();
+}
+
+function elapsedMs(startedAt) {
+  return Math.max(0, nowMs() - startedAt);
+}
+
 function shouldNarrateExecutorResult(result) {
   if (!result) return false;
   if (result.kind !== "bridge") return false;
@@ -223,8 +231,11 @@ export async function routeLlmText(
   { bridge, config, llmClient, executeCommand },
 ) {
   if (!config.llm.enabled || !llmClient) return null;
+  const startedAt = nowMs();
+  const timings = {};
 
   try {
+    const routerStartedAt = nowMs();
     const router = await jsonChatWithRetry({
       llmClient,
       model: config.llm.routerModel,
@@ -235,9 +246,11 @@ export async function routeLlmText(
         { role: "user", content: text },
       ],
     });
+    timings.llmRouterMs = elapsedMs(routerStartedAt);
 
     const mode = normalizeMode(router.mode);
     if (mode === "chat") {
+      const chatStartedAt = nowMs();
       const reply = await llmClient.chat({
         model: config.llm.chatModel,
         think: config.llm.chatThink,
@@ -252,12 +265,18 @@ export async function routeLlmText(
           { role: "user", content: text },
         ],
       });
+      timings.llmChatMs = elapsedMs(chatStartedAt);
       return {
         kind: "llm_chat",
         text: reply.content || "I am here. Tell me what you want to sort out first.",
+        _timings: {
+          ...timings,
+          llmTotalMs: elapsedMs(startedAt),
+        },
       };
     }
 
+    const executorStartedAt = nowMs();
     const planned = await jsonChatWithRetry({
       llmClient,
       model: config.llm.executorModel,
@@ -268,35 +287,56 @@ export async function routeLlmText(
         { role: "user", content: text },
       ],
     });
+    timings.llmExecutorMs = elapsedMs(executorStartedAt);
     const command = normalizeCommand(planned.command);
     if (!command) {
       throw new Error("LLM executor returned an unsupported command");
     }
     const commandArgsText = String(planned.argsText || "").trim();
+    const commandStartedAt = nowMs();
     const result = {
       ...(await executeCommand(commandText({ command, argsText: commandArgsText }))),
       routedBy: "llm_executor",
     };
+    timings.executorCommandMs = elapsedMs(commandStartedAt);
+    Object.assign(timings, result._timings || {});
     if (shouldNarrateExecutorResult(result)) {
       try {
+        const narratorStartedAt = nowMs();
+        const narratedText = await narrateExecutorResult({
+          text,
+          command,
+          commandArgsText,
+          result,
+          config,
+          llmClient,
+        });
+        timings.llmNarratorMs = elapsedMs(narratorStartedAt);
         return {
           ...result,
-          text: await narrateExecutorResult({
-            text,
-            command,
-            commandArgsText,
-            result,
-            config,
-            llmClient,
-          }),
+          text: narratedText,
           narratedBy: "llm_narrator",
+          _timings: {
+            ...timings,
+            llmTotalMs: elapsedMs(startedAt),
+          },
         };
       } catch {
-        return result;
+        return {
+          ...result,
+          _timings: {
+            ...timings,
+            llmTotalMs: elapsedMs(startedAt),
+          },
+        };
       }
     }
     return {
       ...result,
+      _timings: {
+        ...timings,
+        llmTotalMs: elapsedMs(startedAt),
+      },
     };
   } catch (error) {
     if (config.llm.failClosed) {
@@ -307,6 +347,10 @@ export async function routeLlmText(
           "Use /help for deterministic commands, or try again after checking the bot logs.",
         ].join("\n"),
         error: error.message,
+        _timings: {
+          ...timings,
+          llmTotalMs: elapsedMs(startedAt),
+        },
       };
     }
     return null;

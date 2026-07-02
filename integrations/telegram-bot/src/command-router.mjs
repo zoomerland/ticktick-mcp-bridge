@@ -124,6 +124,31 @@ function storeDraft(session, key, draft) {
   return draft;
 }
 
+function nowMs() {
+  return Date.now();
+}
+
+function elapsedMs(startedAt) {
+  return Math.max(0, nowMs() - startedAt);
+}
+
+function withTiming(result, timings) {
+  return {
+    ...result,
+    _timings: {
+      ...(result?._timings || {}),
+      ...timings,
+    },
+  };
+}
+
+function logVoiceTiming(logger, payload) {
+  logger?.info?.(JSON.stringify({
+    event: "telegram_voice_pipeline_timing",
+    ...payload,
+  }));
+}
+
 export async function routeText(
   text,
   {
@@ -135,6 +160,7 @@ export async function routeText(
     allowLlm = true,
   },
 ) {
+  const routeStartedAt = nowMs();
   let { command, argsText } = parseCommand(text);
   const key = sessionKey(principal);
 
@@ -201,7 +227,7 @@ export async function routeText(
           allowLlm: false,
         }),
       });
-      if (llmResult) return llmResult;
+      if (llmResult) return withTiming(llmResult, { routeTotalMs: elapsedMs(routeStartedAt) });
     }
     const naturalIntent = resolveNaturalIntent(argsText, { hasPending: Boolean(pending) });
     if (naturalIntent) {
@@ -471,19 +497,25 @@ export async function routeText(
     return { kind: "invalid", text: "Usage: /search <query>" };
   }
 
+  const bridgeStartedAt = nowMs();
   const data = await bridge.callTool(spec.name, spec.args(argsText, config));
   return {
     kind: "bridge",
     command,
     tool: spec.name,
     text: formatBridgeResult(command, data, config),
+    _timings: {
+      bridgeMs: elapsedMs(bridgeStartedAt),
+      routeTotalMs: elapsedMs(routeStartedAt),
+    },
   };
 }
 
 export async function handleUpdate(
   update,
-  { bridge, config, llmClient = null, rateLimiter, session = globalSessionStore, telegram = null, voiceFetchImpl = fetch },
+  { bridge, config, llmClient = null, rateLimiter, session = globalSessionStore, telegram = null, voiceFetchImpl = fetch, logger = null },
 ) {
+  const updateStartedAt = nowMs();
   const auth = authorizeUpdate(update, config);
   const chatId = auth.principal.chatId || update.message?.chat?.id;
   if (!auth.ok) {
@@ -504,9 +536,24 @@ export async function handleUpdate(
   const voice = getVoiceMessage(update);
   if (voice) {
     let audio = null;
+    const timings = {};
     if (config.telegram.voiceProvider === "http" && config.telegram.voiceDownloadEnabled) {
       const download = await downloadVoiceAudio({ voice, config, telegram });
+      Object.assign(timings, download.timings || {});
       if (!download.ok) {
+        logVoiceTiming(logger, {
+          status: "download_failed",
+          updateId: update.update_id,
+          reason: download.reason,
+          provider: config.telegram.voiceProvider,
+          voiceDurationSec: voice.duration ?? null,
+          voiceFileSize: voice.fileSize ?? null,
+          voiceMimeType: voice.mimeType || null,
+          timings: {
+            ...timings,
+            totalMs: elapsedMs(updateStartedAt),
+          },
+        });
         return {
           chatId,
           kind: "voice_received",
@@ -523,13 +570,31 @@ export async function handleUpdate(
     }
 
     const transcription = await transcribeVoiceMessage({ voice, config, audio, fetchImpl: voiceFetchImpl });
+    Object.assign(timings, transcription.timings || {});
     if (transcription.ok) {
+      const routeStartedAt = nowMs();
       const routed = await routeText(transcription.transcript, {
         bridge,
         config,
         session,
         llmClient,
         principal: auth.principal,
+      });
+      timings.routeMs = elapsedMs(routeStartedAt);
+      Object.assign(timings, routed._timings || {});
+      timings.totalMs = elapsedMs(updateStartedAt);
+      logVoiceTiming(logger, {
+        status: "ok",
+        updateId: update.update_id,
+        provider: transcription.provider,
+        routedKind: routed.kind,
+        routedBy: routed.routedBy || null,
+        narratedBy: routed.narratedBy || null,
+        voiceDurationSec: voice.duration ?? null,
+        voiceFileSize: voice.fileSize ?? null,
+        voiceMimeType: voice.mimeType || null,
+        audioBytes: transcription.audioBytes || timings.audioBytes || null,
+        timings,
       });
       return {
         chatId,
@@ -538,6 +603,18 @@ export async function handleUpdate(
         authorized: true,
       };
     }
+    timings.totalMs = elapsedMs(updateStartedAt);
+    logVoiceTiming(logger, {
+      status: "stt_failed",
+      updateId: update.update_id,
+      reason: transcription.reason,
+      provider: config.telegram.voiceProvider,
+      voiceDurationSec: voice.duration ?? null,
+      voiceFileSize: voice.fileSize ?? null,
+      voiceMimeType: voice.mimeType || null,
+      audioBytes: timings.audioBytes || null,
+      timings,
+    });
     return {
       chatId,
       kind: "voice_received",

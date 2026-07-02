@@ -933,6 +933,7 @@ test("authorized voice update can download small voice and route http transcript
   const bridgeCalls = [];
   const telegramCalls = [];
   const voiceRequests = [];
+  const logLines = [];
   const reply = await handleUpdate(voiceUpdate(), {
     bridge: {
       async callTool(name, args) {
@@ -965,18 +966,38 @@ test("authorized voice update can download small voice and route http transcript
       voiceRequests.push({ url, body: JSON.parse(request.body) });
       return {
         ok: true,
-        json: async () => ({ text: "what is next" }),
+        json: async () => ({
+          text: "what is next",
+          provider: "sensevoice_resident",
+          audioBytes: 3,
+          elapsedMs: 321,
+          requestElapsedMs: 456,
+        }),
       };
     },
     rateLimiter: new RateLimiter({ windowMs: 60000, maxCommands: 10 }),
     session: new SessionStore(),
+    logger: { info: (line) => logLines.push(line) },
   });
 
   assert.equal(reply.kind, "voice_bridge");
-  assert.match(reply.text, /provider: http/);
+  assert.match(reply.text, /provider: sensevoice_resident/);
   assert.match(reply.text, /Upcoming reminders/);
   assert.deepEqual(telegramCalls, [["getFile", "voice-1"], ["downloadFileBytes", "voice/file.ogg"]]);
   assert.equal(voiceRequests.length, 1);
   assert.equal(voiceRequests[0].body.audioBase64, "AQID");
   assert.deepEqual(bridgeCalls.map((call) => call.name), ["ticktick_today"]);
+  assert.equal(logLines.length, 1);
+  const event = JSON.parse(logLines[0]);
+  assert.equal(event.event, "telegram_voice_pipeline_timing");
+  assert.equal(event.status, "ok");
+  assert.equal(event.provider, "sensevoice_resident");
+  assert.equal(event.voiceDurationSec, 12);
+  assert.equal(event.audioBytes, 3);
+  assert.equal(event.timings.sttProviderElapsedMs, 321);
+  assert.equal(event.timings.sttRequestElapsedMs, 456);
+  assert.equal(event.timings.audioBytes, 3);
+  assert.equal(typeof event.timings.totalMs, "number");
+  assert.doesNotMatch(logLines[0], /what is next/);
+  assert.doesNotMatch(logLines[0], /Soon task/);
 });

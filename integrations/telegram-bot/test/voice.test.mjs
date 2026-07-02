@@ -101,14 +101,26 @@ test("transcribeVoiceMessage http provider posts explicit audio payload", async 
       requests.push({ url, request });
       return {
         ok: true,
-        json: async () => ({ text: "what is next" }),
+        json: async () => ({
+          text: "what is next",
+          provider: "sensevoice_resident",
+          audioBytes: 3,
+          elapsedMs: 321,
+          requestElapsedMs: 456,
+        }),
       };
     },
   });
 
   assert.equal(result.ok, true);
-  assert.equal(result.provider, "http");
+  assert.equal(result.provider, "sensevoice_resident");
   assert.equal(result.transcript, "what is next");
+  assert.equal(result.audioBytes, 3);
+  assert.equal(result.sttElapsedMs, 321);
+  assert.equal(result.sttRequestElapsedMs, 456);
+  assert.equal(result.timings.sttProviderElapsedMs, 321);
+  assert.equal(result.timings.sttRequestElapsedMs, 456);
+  assert.equal(Number.isInteger(result.timings.sttHttpMs), true);
   assert.equal(requests.length, 1);
   assert.equal(requests[0].url, "http://127.0.0.1:9876/transcribe");
   assert.equal(requests[0].request.headers.Authorization, ["Bearer", "test-http-token"].join(" "));
@@ -173,5 +185,9 @@ test("downloadVoiceAudio downloads small files into memory only", async () => {
   assert.equal(result.ok, true);
   assert.deepEqual([...result.audio.bytes], [1, 2, 3]);
   assert.equal(result.audio.mimeType, "audio/ogg");
+  assert.equal(result.timings.audioBytes, 3);
+  assert.equal(Number.isInteger(result.timings.telegramGetFileMs), true);
+  assert.equal(Number.isInteger(result.timings.telegramDownloadFileMs), true);
+  assert.equal(Number.isInteger(result.timings.voiceDownloadMs), true);
   assert.deepEqual(calls, [["getFile", "voice-1"], ["downloadFileBytes", "voice/file.ogg"]]);
 });

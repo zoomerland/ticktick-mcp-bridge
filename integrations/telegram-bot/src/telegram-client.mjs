@@ -108,7 +108,7 @@ export async function pollOnce({ telegram, bridge, config, llmClient = null, rat
     nextOffset = Math.max(nextOffset, update.update_id + 1);
     try {
       const { handleUpdate } = await import("./command-router.mjs");
-      const reply = await handleUpdate(update, { bridge, config, llmClient, rateLimiter, session, telegram });
+      const reply = await handleUpdate(update, { bridge, config, llmClient, rateLimiter, session, telegram, logger });
       if (reply.chatId) await telegram.sendMessage(reply.chatId, reply.text);
     } catch (error) {
       logger?.error?.(`Telegram update ${update.update_id} failed: ${error.message}`);

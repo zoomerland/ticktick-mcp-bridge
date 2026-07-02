@@ -9,6 +9,14 @@ export function getVoiceMessage(update) {
   };
 }
 
+function nowMs() {
+  return Date.now();
+}
+
+function elapsedMs(startedAt) {
+  return Math.max(0, nowMs() - startedAt);
+}
+
 export function formatVoiceUnsupported(voice, config) {
   const lines = [
     "Voice message received.",
@@ -34,11 +42,13 @@ function audioToBase64(audio) {
 }
 
 export async function downloadVoiceAudio({ voice, config, telegram }) {
+  const startedAt = nowMs();
   if (!config.telegram.voiceDownloadEnabled) {
     return {
       ok: false,
       reason: "voice_download_disabled",
       text: "Telegram voice download is disabled.",
+      timings: { voiceDownloadMs: elapsedMs(startedAt) },
     };
   }
   if (!telegram?.getFile || !telegram?.downloadFileBytes) {
@@ -46,6 +56,7 @@ export async function downloadVoiceAudio({ voice, config, telegram }) {
       ok: false,
       reason: "telegram_downloader_missing",
       text: "Telegram downloader is not available in this runtime.",
+      timings: { voiceDownloadMs: elapsedMs(startedAt) },
     };
   }
   if (!voice.fileId) {
@@ -53,6 +64,7 @@ export async function downloadVoiceAudio({ voice, config, telegram }) {
       ok: false,
       reason: "missing_file_id",
       text: "Voice file id is missing.",
+      timings: { voiceDownloadMs: elapsedMs(startedAt) },
     };
   }
   if (voice.fileSize && voice.fileSize > config.telegram.voiceMaxBytes) {
@@ -60,16 +72,20 @@ export async function downloadVoiceAudio({ voice, config, telegram }) {
       ok: false,
       reason: "voice_file_too_large",
       text: `Voice file is too large for this gate. Limit: ${config.telegram.voiceMaxBytes} bytes.`,
+      timings: { voiceDownloadMs: elapsedMs(startedAt) },
     };
   }
 
+  const getFileStartedAt = nowMs();
   const file = await telegram.getFile(voice.fileId);
+  const getFileMs = elapsedMs(getFileStartedAt);
   const fileSize = file.file_size || voice.fileSize || 0;
   if (fileSize && fileSize > config.telegram.voiceMaxBytes) {
     return {
       ok: false,
       reason: "voice_file_too_large",
       text: `Voice file is too large for this gate. Limit: ${config.telegram.voiceMaxBytes} bytes.`,
+      timings: { telegramGetFileMs: getFileMs, voiceDownloadMs: elapsedMs(startedAt) },
     };
   }
   if (!file.file_path) {
@@ -77,17 +93,26 @@ export async function downloadVoiceAudio({ voice, config, telegram }) {
       ok: false,
       reason: "missing_file_path",
       text: "Telegram did not return a voice file path.",
+      timings: { telegramGetFileMs: getFileMs, voiceDownloadMs: elapsedMs(startedAt) },
     };
   }
 
+  const downloadStartedAt = nowMs();
   const bytes = await telegram.downloadFileBytes(file.file_path, {
     maxBytes: config.telegram.voiceMaxBytes,
   });
+  const telegramDownloadFileMs = elapsedMs(downloadStartedAt);
   if (bytes.byteLength > config.telegram.voiceMaxBytes) {
     return {
       ok: false,
       reason: "voice_file_too_large",
       text: `Downloaded voice file is too large for this gate. Limit: ${config.telegram.voiceMaxBytes} bytes.`,
+      timings: {
+        telegramGetFileMs: getFileMs,
+        telegramDownloadFileMs,
+        voiceDownloadMs: elapsedMs(startedAt),
+        audioBytes: bytes.byteLength,
+      },
     };
   }
 
@@ -97,10 +122,17 @@ export async function downloadVoiceAudio({ voice, config, telegram }) {
       bytes,
       mimeType: voice.mimeType || "audio/ogg",
     },
+    timings: {
+      telegramGetFileMs: getFileMs,
+      telegramDownloadFileMs,
+      voiceDownloadMs: elapsedMs(startedAt),
+      audioBytes: bytes.byteLength,
+    },
   };
 }
 
 async function callHttpVoiceProvider({ voice, config, audio, fetchImpl = fetch }) {
+  const startedAt = nowMs();
   if (!config.telegram.voiceHttpUrl) {
     return {
       ok: false,
@@ -111,6 +143,7 @@ async function callHttpVoiceProvider({ voice, config, audio, fetchImpl = fetch }
         "HTTP voice provider is enabled, but TELEGRAM_VOICE_HTTP_URL is missing.",
         "No file was downloaded and no transcript was created.",
       ].join("\n"),
+      timings: { sttHttpMs: elapsedMs(startedAt) },
     };
   }
 
@@ -126,6 +159,7 @@ async function callHttpVoiceProvider({ voice, config, audio, fetchImpl = fetch }
           : "HTTP voice provider is configured, but Telegram voice download is disabled.",
         "No Telegram voice file was downloaded and no transcript was created.",
       ].join("\n"),
+      timings: { sttHttpMs: elapsedMs(startedAt) },
     };
   }
 
@@ -147,6 +181,9 @@ async function callHttpVoiceProvider({ voice, config, audio, fetchImpl = fetch }
       signal: controller.signal,
     });
     const body = await response.json();
+    const sttHttpMs = elapsedMs(startedAt);
+    const sttProviderElapsedMs = Number.isFinite(Number(body.elapsedMs)) ? Number(body.elapsedMs) : null;
+    const sttRequestElapsedMs = Number.isFinite(Number(body.requestElapsedMs)) ? Number(body.requestElapsedMs) : null;
     if (!response.ok) {
       return {
         ok: false,
@@ -155,6 +192,7 @@ async function callHttpVoiceProvider({ voice, config, audio, fetchImpl = fetch }
           "Voice message received.",
           "HTTP voice provider returned an error. Check service logs before retrying.",
         ].join("\n"),
+        timings: { sttHttpMs, sttProviderElapsedMs, sttRequestElapsedMs },
       };
     }
     const transcript = String(body.text || body.transcript || "").trim();
@@ -166,15 +204,20 @@ async function callHttpVoiceProvider({ voice, config, audio, fetchImpl = fetch }
           "Voice message received.",
           "HTTP voice provider returned an empty transcript.",
         ].join("\n"),
+        timings: { sttHttpMs, sttProviderElapsedMs, sttRequestElapsedMs },
       };
     }
     return {
       ok: true,
-      provider: "http",
+      provider: body.provider || "http",
       transcript,
+      audioBytes: Number(body.audioBytes || audio.bytes.byteLength || 0),
+      sttElapsedMs: sttProviderElapsedMs,
+      sttRequestElapsedMs,
+      timings: { sttHttpMs, sttProviderElapsedMs, sttRequestElapsedMs },
       text: [
         "Voice transcript accepted.",
-        "provider: http",
+        `provider: ${body.provider || "http"}`,
       ].join("\n"),
     };
   } catch {
@@ -185,6 +228,7 @@ async function callHttpVoiceProvider({ voice, config, audio, fetchImpl = fetch }
         "Voice message received.",
         "HTTP voice provider is unreachable or timed out.",
       ].join("\n"),
+      timings: { sttHttpMs: elapsedMs(startedAt) },
     };
   } finally {
     clearTimeout(timeout);

@@ -19,6 +19,7 @@
     "voice-dry-run": "node scripts/voice-dry-run.mjs",
     "voice-http-dry-run": "node scripts/voice-http-dry-run.mjs",
     "voice-local-stt-dry-run": "node scripts/voice-local-stt-dry-run.mjs",
+    "voice-live-synthetic": "node scripts/voice-live-synthetic.mjs",
     "resource-stress": "node --expose-gc scripts/resource-stress.mjs",
     "start": "node src/index.mjs"
   },
